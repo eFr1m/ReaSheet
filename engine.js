@@ -6,7 +6,7 @@
  * @returns {object} A new, merged Style component descriptor.
  */
 function mergeStyles(inheritedStyle, ownStyle) {
-    if (!inheritedStyle && !ownStyle) return Style();
+    if (!inheritedStyle && !ownStyle) return new Style();
     if (!inheritedStyle) return ownStyle;
     if (!ownStyle) return inheritedStyle;
 
@@ -16,109 +16,28 @@ function mergeStyles(inheritedStyle, ownStyle) {
         font: { ...inheritedStyle.props.font, ...ownStyle.props.font },
         alignment: { ...inheritedStyle.props.alignment, ...ownStyle.props.alignment },
         wrap: { ...inheritedStyle.props.wrap, ...ownStyle.props.wrap },
-        border: { ...inheritedStyle.props.border, ...ownStyle.props.border },
+        border: new Border({ ...inheritedStyle.props.border.props, ...ownStyle.props.border.props }),
         rotation: { ...inheritedStyle.props.rotation, ...ownStyle.props.rotation }
     };
-    return Style(mergedProps);
-}
-
-function layoutCell(descriptor, position, inheritedStyle, occupancyMap) {
-    const finalStyle = mergeStyles(inheritedStyle, descriptor.props.style);
-    
-    const finalDescriptor = { ...descriptor };
-    finalDescriptor.props.style = finalStyle;
-
-    const resolvedCell = {
-        row: position.row,
-        col: position.col,
-        descriptor: finalDescriptor
-    };
-
-    const { rowSpan = 1, colSpan = 1 } = descriptor.props;
-    for (let r = 0; r < rowSpan; r++) {
-        for (let c = 0; c < colSpan; c++) {
-            occupancyMap.add(`${position.row + r}:${position.col + c}`);
-        }
-    }
-    return [resolvedCell];
-}
-
-function layoutHStack(descriptor, position, inheritedStyle, occupancyMap) {
-    let resolvedCells = [];
-    let cursor = { ...position };
-    const containerStyle = mergeStyles(inheritedStyle, descriptor.props.style);
-
-    for (const child of descriptor.props.children) {
-        let childStartPos = { ...cursor };
-        while (occupancyMap.has(`${childStartPos.row}:${childStartPos.col}`)) {
-            childStartPos.col++;
-        }
-
-        const childCells = layoutEngine(child, childStartPos, containerStyle, occupancyMap);
-        resolvedCells.push(...childCells);
-
-        let childMaxCol = 0;
-        childCells.forEach(c => {
-            childMaxCol = Math.max(childMaxCol, c.col + (c.descriptor.props.colSpan || 1) - 1);
-        });
-        
-        cursor.col = childMaxCol + 1;
-    }
-    return resolvedCells;
-}
-
-function layoutVStack(descriptor, position, inheritedStyle, occupancyMap) {
-    let resolvedCells = [];
-    let cursor = { ...position };
-    const containerStyle = mergeStyles(inheritedStyle, descriptor.props.style);
-
-    for (const child of descriptor.props.children) {
-        let childStartPos = { ...cursor };
-        while (occupancyMap.has(`${childStartPos.row}:${childStartPos.col}`)) {
-            childStartPos.row++;
-        }
-
-        const childCells = layoutEngine(child, childStartPos, containerStyle, occupancyMap);
-        resolvedCells.push(...childCells);
-
-        let childMaxRow = 0;
-        childCells.forEach(c => {
-            childMaxRow = Math.max(childMaxRow, c.row + (c.descriptor.props.rowSpan || 1) - 1);
-        });
-
-        cursor.row = childMaxRow + 1;
-    }
-    return resolvedCells;
+    return new Style(mergedProps);
 }
 
 /**
  * The Layout Engine.
  * Recursively walks a component descriptor tree and calculates the absolute
  * position of every cell, handling spans and style inheritance.
- * @param {object} descriptor - The root layout component descriptor.
+ * @param {object} component - The root layout component.
  * @param {object} startPosition - The starting {row, col}.
  * @param {object} inheritedStyle - The style from parent containers.
  * @param {Set<string>} occupancyMap - A map of occupied "row:col" coordinates.
  * @returns {Array<object>} A flat array of resolved cells.
  */
-function layoutEngine(descriptor, startPosition = { row: 1, col: 1 }, inheritedStyle = Style(), occupancyMap = new Set()) {
-    if (!descriptor || descriptor.category !== Category.LAYOUT) {
-        throw new Error("Layout engine can only process Layout components.");
+function layoutEngine(component, startPosition = { row: 1, col: 1 }, inheritedStyle = new Style(), occupancyMap = new Set()) {
+    if (!(component instanceof Component)) {
+        throw new Error("Layout engine can only process Component instances.");
     }
 
-    const layoutFunctions = {
-        [Cell.name]: layoutCell,
-        [HStack.name]: layoutHStack,
-        [VStack.name]: layoutVStack,
-    };
-
-    const layoutFunction = layoutFunctions[descriptor.component.name];
-
-    if (layoutFunction) {
-        return layoutFunction(descriptor, startPosition, inheritedStyle, occupancyMap);
-    }
-
-    return [];
+    return component.render(startPosition, inheritedStyle, occupancyMap);
 }
 
 /**
@@ -171,11 +90,14 @@ function commitEngine(resolvedCells, targetSheet) {
     const numberFormats = createGrid();
     const borders = createGrid(false); // For border settings
     const merges = [];
+    const conditionalFormats = [];
 
     // 3. Populate Grids
     resolvedCells.forEach(cell => {
         const { props } = cell.descriptor;
         const { type, style, note, rowSpan = 1, colSpan = 1 } = props;
+
+        const directives = type.getRenderDirectives(targetSheet.getRange(cell.row, cell.col, rowSpan, colSpan));
 
         // Create a template for all properties to be applied
         const cellData = {
@@ -190,20 +112,13 @@ function commitEngine(resolvedCells, targetSheet) {
             hAlign: style.props.alignment.horizontal,
             vAlign: style.props.alignment.vertical,
             wrap: style.props.wrap.strategy,
-            validation: null,
-            border: style.props.border,
-            numberFormat: null
+            validation: directives.validation || null,
+            border: style.props.border.props,
+            numberFormat: directives.numberFormat || null
         };
 
-        if (type.component === Checkbox) {
-            cellData.validation = SpreadsheetApp.newDataValidation().requireCheckbox().build();
-        } else if (type.component === Dropdown) {
-            cellData.validation = SpreadsheetApp.newDataValidation().requireValueInList(type.props.values).build();
-        } else if (type.component === DatePicker) {
-            cellData.validation = SpreadsheetApp.newDataValidation().requireDate().build();
-            if (type.props.format) {
-                cellData.numberFormat = type.props.format;
-            }
+        if (directives.conditionalFormatRules) {
+            conditionalFormats.push(...directives.conditionalFormatRules);
         }
 
         // Iterate over the spanned area and apply properties to all cells in the span
@@ -257,19 +172,8 @@ function commitEngine(resolvedCells, targetSheet) {
         .setHorizontalAlignments(horizontalAlignments)
         .setVerticalAlignments(verticalAlignments)
         .setDataValidations(validations)
-        .setNumberFormats(numberFormats);
-
-    // Sanitize the wrap strategies grid and call the API.
-    const wrapStrategyMap = {
-        'WRAP': SpreadsheetApp.WrapStrategy.WRAP,
-        'OVERFLOW': SpreadsheetApp.WrapStrategy.OVERFLOW,
-        'CLIP': SpreadsheetApp.WrapStrategy.CLIP
-    };
-
-    const sanitizedWrapStrategies = wrapStrategies.map(row => 
-        row.map(strategy => wrapStrategyMap[strategy] || SpreadsheetApp.WrapStrategy.OVERFLOW)
-    );
-    fullRange.setWrapStrategies(sanitizedWrapStrategies);
+        .setNumberFormats(numberFormats)
+        .setWrapStrategies(wrapStrategies);
 
     // Process borders separately
     for (let r = 0; r < numRows; r++) {
@@ -286,10 +190,15 @@ function commitEngine(resolvedCells, targetSheet) {
                     false, // vertical (within a range)
                     false, // horizontal (within a range)
                     top ? top.color : (right ? right.color : (bottom ? bottom.color : (left ? left.color : null))),
-                    top ? top.style : (right ? right.style : (bottom ? bottom.style : (left ? left.style : null)))
+                    top ? top.thickness : (right ? right.thickness : (bottom ? bottom.thickness : (left ? left.thickness : null)))
                 );
             }
         }
+    }
+
+    // Apply conditional formats
+    if (conditionalFormats.length > 0) {
+        targetSheet.setConditionalFormatRules(conditionalFormats);
     }
 
     // 5. Handle Merges
@@ -302,8 +211,8 @@ function commitEngine(resolvedCells, targetSheet) {
  * @param {Sheet} targetSheet - The Google Apps Script sheet object to render to.
  */
 function render(rootComponent, targetSheet) {
-    if (!rootComponent || rootComponent.category !== Category.LAYOUT) {
-        throw new Error("Render function requires a root Layout component.");
+    if (!(rootComponent instanceof Component)) {
+        throw new Error("Render function requires a root Component instance.");
     }
     if (!targetSheet) {
         throw new Error("Render function requires a target sheet object.");

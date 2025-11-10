@@ -25,79 +25,99 @@ function createToDoListSheet() {
     sheet.setFrozenRows(1);
 
     // 2. Define some reusable styles for clarity
-    const headerStyle = Style({
+    const headerStyle = new Style({
         backgroundColor: '#4a86e8',
         font: { color: 'white', bold: true },
-        alignment: { horizontal: 'center', vertical: 'middle' }
+        alignment: { horizontal: 'center', vertical: 'middle' },
+        border: new Border({
+            bottom: { color: 'black', thickness: BorderThickness.SOLID_THICK }
+        })
     });
 
-    const evenRowStyle = Style({
+    const evenRowStyle = new Style({
         backgroundColor: '#f3f3f3'
     });
 
+    // Define styles for dropdown options
+    const pendingStyle = new Style({ backgroundColor: '#fff2cc' }); // Light orange
+    const inProgressStyle = new Style({ backgroundColor: '#cfe2f3' }); // Light blue
+    const completeStyle = new Style({ backgroundColor: '#d9ead3' }); // Light green
+
     // 3. Define the entire sheet layout using components
-    const myToDoList = VStack({
+    const myToDoList = new VStack({
         // Base style for the entire table
-        style: Style({ font: { family: 'Arial', size: 10 } }),
+        style: new Style({ font: { family: 'Arial', size: 10 } }),
         children: [
             // Header Row
-            HStack({
+            new HStack({
                 style: headerStyle,
                 children: [
-                    Cell({ type: Text('TASK ID'), colSpan: 2 }),
-                    Cell({ type: Text('DESCRIPTION'), colSpan: 3 }),
-                    Cell({ type: Text('STATUS') }),
-                    Cell({ type: Text('DUE DATE') }),
-                    Cell({ type: Text('DONE') })
+                    new Cell({ type: new Text('TASK ID'), colSpan: 2 }),
+                    new Cell({ type: new Text('DESCRIPTION'), colSpan: 3 }),
+                    new Cell({ type: new Text('STATUS') }),
+                    new Cell({ type: new Text('DUE DATE') }),
+                    new Cell({ type: new Text('DONE') })
                 ]
             }),
             // Data Row 1
-            HStack({
+            new HStack({
                 children: [
-                    Cell({ type: Text('PROJ-A'), style: Style({ font: { bold: true } }) }),
-                    Cell({ type: Text('101') }),
-                    Cell({ type: Text('Finalize Q3 report and submit for review.'), colSpan: 3 }),
-                    Cell({
-                        type: Dropdown({
-                            values: ['Pending', 'In Progress', 'Complete'],
+                    new Cell({ type: new Text('PROJ-A'), style: new Style({ font: { bold: true } }) }),
+                    new Cell({ type: new Text('101') }),
+                    new Cell({ type: new Text('Finalize Q3 report and submit for review.'), colSpan: 3 }),
+                    new Cell({
+                        type: new Dropdown({
+                            values: [
+                                { value: 'Pending', style: pendingStyle },
+                                { value: 'In Progress', style: inProgressStyle },
+                                { value: 'Complete', style: completeStyle }
+                            ],
                             selected: 'In Progress'
                         })
                     }),
-                    Cell({ type: DatePicker({ format: 'yyyy-mm-dd' }) }),
-                    Cell({ type: Checkbox(false) })
+                    new Cell({ type: new DatePicker({ format: 'yyyy-mm-dd' }) }),
+                    new Cell({ type: new Checkbox(false) })
                 ]
             }),
             // Data Row 2
-            HStack({
+            new HStack({
                 style: evenRowStyle, // Apply a style to the whole row
                 children: [
-                    Cell({ type: Text('PROJ-B'), style: Style({ font: { bold: true } }) }),
-                    Cell({ type: Text('205') }),
-                    Cell({ type: Text('Onboard new team members.'), colSpan: 3 }),
-                    Cell({
-                        type: Dropdown({
-                            values: ['Pending', 'In Progress', 'Complete'],
+                    new Cell({ type: new Text('PROJ-B'), style: new Style({ font: { bold: true } }) }),
+                    new Cell({ type: new Text('205') }),
+                    new Cell({ type: new Text('Onboard new team members.'), colSpan: 3 }),
+                    new Cell({
+                        type: new Dropdown({
+                            values: [
+                                { value: 'Pending', style: pendingStyle },
+                                { value: 'In Progress', style: inProgressStyle },
+                                { value: 'Complete', style: completeStyle }
+                            ],
                             selected: 'Pending'
                         })
                     }),
-                    Cell({ type: DatePicker({ format: 'yyyy-mm-dd' }) }),
-                    Cell({ type: Checkbox(false) })
+                    new Cell({ type: new DatePicker({ format: 'yyyy-mm-dd' }) }),
+                    new Cell({ type: new Checkbox(false) })
                 ]
             }),
              // Data Row 3
-            HStack({
+            new HStack({
                 children: [
-                    Cell({ type: Text('PROJ-A'), style: Style({ font: { bold: true } }) }),
-                    Cell({ type: Text('102') }),
-                    Cell({ type: Text('Prepare slides for stakeholder meeting.'), colSpan: 3 }),
-                    Cell({
-                        type: Dropdown({
-                            values: ['Pending', 'In Progress', 'Complete'],
+                    new Cell({ type: new Text('PROJ-A'), style: new Style({ font: { bold: true } }) }),
+                    new Cell({ type: new Text('102') }),
+                    new Cell({ type: new Text('Prepare slides for stakeholder meeting.'), colSpan: 3 }),
+                    new Cell({
+                        type: new Dropdown({
+                            values: [
+                                { value: 'Pending', style: pendingStyle },
+                                { value: 'In Progress', style: inProgressStyle },
+                                { value: 'Complete', style: completeStyle }
+                            ],
                             selected: 'Complete'
                         })
                     }),
-                    Cell({ type: DatePicker({ format: 'yyyy-mm-dd' }) }),
-                    Cell({ type: Checkbox(true) })
+                    new Cell({ type: new DatePicker({ format: 'yyyy-mm-dd' }) }),
+                    new Cell({ type: new Checkbox(true) })
                 ]
             }),
         ]
