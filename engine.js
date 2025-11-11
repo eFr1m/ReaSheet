@@ -80,6 +80,7 @@ class Renderer {
         const notes = createGrid();
         const validations = createGrid();
         const numberFormats = createGrid("General");
+        const rotations = createGrid(0);
         const borders = createGrid(false);
         const widths = {}; // Using an object to store column widths
         const heights = {}; // Using an object to store row heights
@@ -112,7 +113,8 @@ class Renderer {
                 wrap: style.props.wrap.strategy,
                 validation: directives.validation || null,
                 border: style.props.border.props,
-                numberFormat: directives.numberFormat || null
+                numberFormat: directives.numberFormat || null,
+                rotation: style.props.rotation.angle
             };
 
             if (directives.conditionalFormatRules) {
@@ -136,6 +138,7 @@ class Renderer {
                     verticalAlignments[r][c] = cellData.vAlign;
                     wrapStrategies[r][c] = cellData.wrap;
                     validations[r][c] = cellData.validation;
+                    rotations[r][c] = cellData.rotation;
                     if (cellData.numberFormat) {
                         numberFormats[r][c] = cellData.numberFormat;
                     }
@@ -156,6 +159,8 @@ class Renderer {
         });
 
         fullRange
+            .setNumberFormats(numberFormats)
+            .setDataValidations(validations)
             .setValues(values)
             .setNotes(notes)
             .setBackgrounds(backgrounds)
@@ -166,8 +171,6 @@ class Renderer {
             .setFontLines(fontLines)
             .setHorizontalAlignments(horizontalAlignments)
             .setVerticalAlignments(verticalAlignments)
-            .setDataValidations(validations)
-            .setNumberFormats(numberFormats)
             .setWrapStrategies(wrapStrategies);
 
         for (const col in widths) {
@@ -179,20 +182,27 @@ class Renderer {
 
         for (let r = 0; r < numRows; r++) {
             for (let c = 0; c < numCols; c++) {
+                const rotation = rotations[r][c];
+                if (rotation !== 0) {
+                    this.sheet.getRange(minRow + r, minCol + c).setTextRotation(rotation);
+                }
+
                 const borderInfo = borders[r][c];
                 if (borderInfo) {
                     const range = this.sheet.getRange(minRow + r, minCol + c);
                     const { top, bottom, left, right } = borderInfo;
-                    range.setBorder(
-                        top ? true : null,
-                        left ? true : null,
-                        bottom ? true : null,
-                        right ? true : null,
-                        false,
-                        false,
-                        top ? top.color : (right ? right.color : (bottom ? bottom.color : (left ? left.color : null))),
-                        top ? top.thickness : (right ? right.thickness : (bottom ? bottom.thickness : (left ? left.thickness : null)))
-                    );
+                    if (top) {
+                        range.setBorder(true, null, null, null, null, null, top.color, top.thickness);
+                    }
+                    if (left) {
+                        range.setBorder(null, true, null, null, null, null, left.color, left.thickness);
+                    }
+                    if (bottom) {
+                        range.setBorder(null, null, true, null, null, null, bottom.color, bottom.thickness);
+                    }
+                    if (right) {
+                        range.setBorder(null, null, null, true, null, null, right.color, right.thickness);
+                    }
                 }
             }
         }

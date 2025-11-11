@@ -125,16 +125,15 @@ class Dropdown extends Type {
 }
 
 class DatePicker extends Type {
-    constructor({ format = '', date = null, value = null } = {}) {
+    constructor({ format = '', value = null } = {}) {
         super();
         if (typeof format !== 'string') {
             throw new Error("DatePicker format must be a string.");
         }
-        const initialDate = date || value;
-        if (initialDate && !(initialDate instanceof Date)) {
-            throw new Error("DatePicker 'date' or 'value' prop must be a Date object.");
+        if (value && (!(value instanceof Date) || isNaN(value.getTime()))) {
+            throw new Error("DatePicker 'value' prop must be a valid Date object.");
         }
-        this.props = { format, value: initialDate };
+        this.props = { format, value };
     }
 
     getRenderDirectives(range) {
@@ -143,6 +142,9 @@ class DatePicker extends Type {
         };
         if (this.props.format) {
             directives.numberFormat = this.props.format;
+        }
+        if (this.props.value instanceof Date) {
+            this.props.value = this.props.value.toLocaleDateString();
         }
         return directives;
     }
