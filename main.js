@@ -16,116 +16,143 @@
  * and then calls the render function to build the sheet.
  */
 function createToDoListSheet() {
-    // 1. Get the target sheet object from Google Apps Script
-    const ss = SpreadsheetApp.getActiveSpreadsheet();
-    const sheet = ss.getSheetByName('ToDoList') || ss.insertSheet('ToDoList');
-    
-    // It's good practice to clear the sheet for a fresh render
-    sheet.clear();
-    sheet.setFrozenRows(1);
+  // 1. Get the target sheet object from Google Apps Script
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("ToDoList") || ss.insertSheet("ToDoList");
 
-    // 2. Define some reusable styles for clarity
-    const headerStyle = new Style({
-        backgroundColor: '#4a86e8',
-        font: { color: 'white', bold: true },
-        alignment: { horizontal: 'center', vertical: 'middle' },
-        border: new Border({
-            bottom: { color: 'black', thickness: BorderThickness.SOLID_THICK }
-        })
-    });
+  // It's good practice to clear the sheet for a fresh render
+  sheet.clear();
+  sheet.setFrozenRows(1);
 
-    const evenRowStyle = new Style({
-        backgroundColor: '#f3f3f3'
-    });
+  // 2. Define some reusable styles for clarity
+  const headerStyle = new Style({
+    backgroundColor: "#4a86e8",
+    font: { color: "white", bold: true },
+    alignment: { horizontal: "center", vertical: "middle" },
+    border: new Border({
+      bottom: { color: "black", thickness: BorderThickness.SOLID_THICK },
+    }),
+    height: 40,
+  });
 
-    // Define styles for dropdown options
-    const pendingStyle = new Style({ backgroundColor: '#fff2cc' }); // Light orange
-    const inProgressStyle = new Style({ backgroundColor: '#cfe2f3' }); // Light blue
-    const completeStyle = new Style({ backgroundColor: '#d9ead3' }); // Light green
+  const evenRowStyle = new Style({
+    backgroundColor: "#f3f3f3",
+  });
 
-    // 3. Define the entire sheet layout using components
-    const myToDoList = new VStack({
-        // Base style for the entire table
-        style: new Style({ font: { family: 'Arial', size: 10 } }),
+  // Define styles for dropdown options
+  const pendingStyle = new Style({ backgroundColor: "#fff2cc" }); // Light orange
+  const inProgressStyle = new Style({ backgroundColor: "#cfe2f3" }); // Light blue
+  const completeStyle = new Style({ backgroundColor: "#d9ead3" }); // Light green
+
+  // 3. Define the entire sheet layout using components
+  const myToDoList = new VStack({
+    // Base style for the entire table
+    style: new Style({ font: { family: "Arial", size: 10 } }),
+    children: [
+      // Header Row
+      new HStack({
+        style: headerStyle,
         children: [
-            // Header Row
-            new HStack({
-                style: headerStyle,
-                children: [
-                    new Cell({ type: new Text('TASK ID'), colSpan: 2 }),
-                    new Cell({ type: new Text('DESCRIPTION'), colSpan: 3 }),
-                    new Cell({ type: new Text('STATUS') }),
-                    new Cell({ type: new Text('DUE DATE') }),
-                    new Cell({ type: new Text('DONE') })
-                ]
+          new Cell({ type: new Text("PROJECT") }),
+          new Cell({ type: new Text("ID") }),
+          new Cell({
+            type: new Text("DESCRIPTION"),
+            colSpan: 3,
+            style: new Style({ width: 300 }),
+          }),
+          new Cell({ type: new Text("STATUS") }),
+          new Cell({ type: new Text("DUE DATE") }),
+          new Cell({ type: new Text("DONE") }),
+        ],
+      }),
+      // Data Row 1
+      new HStack({
+        style: new Style({
+          height: 50,
+        }), // No special style for odd rows
+        children: [
+          new Cell({
+            type: new Text("PROJ-A"),
+            style: new Style({ font: { bold: true } }),
+          }),
+          new Cell({ type: new Text("101") }),
+          new Cell({
+            type: new Text("Finalize Q3 report and submit for review."),
+            colSpan: 3,
+          }),
+          new Cell({
+            type: new Dropdown({
+              values: [
+                { value: "Pending", style: pendingStyle },
+                { value: "In Progress", style: inProgressStyle },
+                { value: "Complete", style: completeStyle },
+              ],
+              selected: "In Progress",
             }),
-            // Data Row 1
-            new HStack({
-                children: [
-                    new Cell({ type: new Text('PROJ-A'), style: new Style({ font: { bold: true } }) }),
-                    new Cell({ type: new Text('101') }),
-                    new Cell({ type: new Text('Finalize Q3 report and submit for review.'), colSpan: 3 }),
-                    new Cell({
-                        type: new Dropdown({
-                            values: [
-                                { value: 'Pending', style: pendingStyle },
-                                { value: 'In Progress', style: inProgressStyle },
-                                { value: 'Complete', style: completeStyle }
-                            ],
-                            selected: 'In Progress'
-                        })
-                    }),
-                    new Cell({ type: new DatePicker({ format: 'yyyy-mm-dd' }) }),
-                    new Cell({ type: new Checkbox(false) })
-                ]
+          }),
+          new Cell({
+            type: new DatePicker({ format: "yyyy-mm-dd", date: new Date() }),
+          }),
+          new Cell({ type: new Checkbox(false) }),
+        ],
+      }),
+      // Data Row 2
+      new HStack({
+        style: evenRowStyle, // Apply a style to the whole row
+        children: [
+          new Cell({
+            type: new Text("PROJ-B"),
+            style: new Style({ font: { bold: true } }),
+          }),
+          new Cell({ type: new Text("R"), style: new Style({}) }),
+          new Cell({ type: new Text("Onboard new team members."), colSpan: 3 }),
+          new Cell({
+            type: new Dropdown({
+              values: [
+                { value: "Pending", style: pendingStyle },
+                { value: "In Progress", style: inProgressStyle },
+                { value: "Complete", style: completeStyle },
+              ],
+              selected: "Pending",
             }),
-            // Data Row 2
-            new HStack({
-                style: evenRowStyle, // Apply a style to the whole row
-                children: [
-                    new Cell({ type: new Text('PROJ-B'), style: new Style({ font: { bold: true } }) }),
-                    new Cell({ type: new Text('205') }),
-                    new Cell({ type: new Text('Onboard new team members.'), colSpan: 3 }),
-                    new Cell({
-                        type: new Dropdown({
-                            values: [
-                                { value: 'Pending', style: pendingStyle },
-                                { value: 'In Progress', style: inProgressStyle },
-                                { value: 'Complete', style: completeStyle }
-                            ],
-                            selected: 'Pending'
-                        })
-                    }),
-                    new Cell({ type: new DatePicker({ format: 'yyyy-mm-dd' }) }),
-                    new Cell({ type: new Checkbox(false) })
-                ]
+          }),
+          new Cell({
+            type: new DatePicker({ format: "yyyy-mm-dd", date: new Date() }),
+          }),
+          new Cell({ type: new Checkbox(false) }),
+        ],
+      }),
+      // Data Row 3
+      new HStack({
+        children: [
+          new Cell({
+            type: new Text("PROJ-A"),
+            style: new Style({ font: { bold: true } }),
+          }),
+          new Cell({ type: new Text("102") }),
+          new Cell({
+            type: new Text("Prepare slides for stakeholder meeting."),
+            colSpan: 3,
+          }),
+          new Cell({
+            type: new Dropdown({
+              values: [
+                { value: "Pending", style: pendingStyle },
+                { value: "In Progress", style: inProgressStyle },
+                { value: "Complete", style: completeStyle },
+              ],
+              selected: "Complete",
             }),
-             // Data Row 3
-            new HStack({
-                children: [
-                    new Cell({ type: new Text('PROJ-A'), style: new Style({ font: { bold: true } }) }),
-                    new Cell({ type: new Text('102') }),
-                    new Cell({ type: new Text('Prepare slides for stakeholder meeting.'), colSpan: 3 }),
-                    new Cell({
-                        type: new Dropdown({
-                            values: [
-                                { value: 'Pending', style: pendingStyle },
-                                { value: 'In Progress', style: inProgressStyle },
-                                { value: 'Complete', style: completeStyle }
-                            ],
-                            selected: 'Complete'
-                        })
-                    }),
-                    new Cell({ type: new DatePicker({ format: 'yyyy-mm-dd' }) }),
-                    new Cell({ type: new Checkbox(true) })
-                ]
-            }),
-        ]
-    });
+          }),
+          new Cell({
+            type: new DatePicker({ format: "yyyy-mm-dd", date: new Date() }),
+          }),
+          new Cell({ type: new Checkbox(true) }),
+        ],
+      }),
+    ],
+  });
 
-    // 4. Render the final layout to the sheet
-    render(myToDoList, sheet);
-    
-    // Adjust column widths for better readability
-    sheet.autoResizeColumns(1, sheet.getLastColumn());
+  // 4. Render the final layout to the sheet
+  render(myToDoList, sheet);
 }

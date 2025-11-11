@@ -27,7 +27,7 @@ class Component {
         // The base component does not hold any data.
     }
 
-    render() {
+    render(renderer, position, inheritedStyle) {
         throw new Error("Component must implement a render method.");
     }
 }
@@ -125,12 +125,16 @@ class Dropdown extends Type {
 }
 
 class DatePicker extends Type {
-    constructor({ format = '' } = {}) {
+    constructor({ format = '', date = null, value = null } = {}) {
         super();
         if (typeof format !== 'string') {
             throw new Error("DatePicker format must be a string.");
         }
-        this.props = { format };
+        const initialDate = date || value;
+        if (initialDate && !(initialDate instanceof Date)) {
+            throw new Error("DatePicker 'date' or 'value' prop must be a Date object.");
+        }
+        this.props = { format, value: initialDate };
     }
 
     getRenderDirectives(range) {
@@ -176,7 +180,9 @@ class Style {
         alignment = {},
         wrap = {},
         border = new Border({}),
-        rotation = {}
+        rotation = {},
+        width = null,
+        height = null
     } = {}) {
         if (backgroundColor && typeof backgroundColor !== 'string') {
             throw new Error("Style 'backgroundColor' must be a string.");
@@ -198,6 +204,12 @@ class Style {
         }
         if (typeof rotation !== 'object' || rotation === null) {
             throw new Error("Style 'rotation' must be an object.");
+        }
+        if (width !== null && typeof width !== 'number') {
+            throw new Error("Style 'width' must be a number.");
+        }
+        if (height !== null && typeof height !== 'number') {
+            throw new Error("Style 'height' must be a number.");
         }
 
         const defaultFont = {
@@ -229,7 +241,9 @@ class Style {
             alignment: { ...defaultAlignment, ...alignment },
             wrap: { ...defaultWrap, ...wrap },
             border: border,
-            rotation: { ...defaultRotation, ...rotation }
+            rotation: { ...defaultRotation, ...rotation },
+            width,
+            height
         };
     }
 }
@@ -246,22 +260,19 @@ class HStack extends Component {
         this.props = { children, style };
     }
 
-    render(position, inheritedStyle, occupancyMap) {
-        let resolvedCells = [];
+    render(renderer, position, inheritedStyle) {
+        let resolved = [];
         let cursor = { ...position };
-        const containerStyle = this.props.style ? mergeStyles(inheritedStyle, this.props.style) : inheritedStyle;
+        const containerStyle = this.props.style ? renderer._mergeStyles(inheritedStyle, this.props.style) : inheritedStyle;
 
         for (const child of this.props.children) {
-            if (!(child instanceof Component)) {
-                throw new Error("HStack children must be instances of Component.");
-            }
             let childStartPos = { ...cursor };
-            while (occupancyMap.has(`${childStartPos.row}:${childStartPos.col}`)) {
+            while (renderer.occupancyMap.has(`${childStartPos.row}:${childStartPos.col}`)) {
                 childStartPos.col++;
             }
 
-            const childCells = child.render(childStartPos, containerStyle, occupancyMap);
-            resolvedCells.push(...childCells);
+            const childCells = child.render(renderer, childStartPos, containerStyle);
+            resolved.push(...childCells);
 
             let childMaxCol = 0;
             childCells.forEach(c => {
@@ -270,7 +281,7 @@ class HStack extends Component {
             
             cursor.col = childMaxCol + 1;
         }
-        return resolvedCells;
+        return resolved;
     }
 }
 
@@ -286,22 +297,19 @@ class VStack extends Component {
         this.props = { children, style };
     }
 
-    render(position, inheritedStyle, occupancyMap) {
-        let resolvedCells = [];
+    render(renderer, position, inheritedStyle) {
+        let resolved = [];
         let cursor = { ...position };
-        const containerStyle = this.props.style ? mergeStyles(inheritedStyle, this.props.style) : inheritedStyle;
+        const containerStyle = this.props.style ? renderer._mergeStyles(inheritedStyle, this.props.style) : inheritedStyle;
 
         for (const child of this.props.children) {
-            if (!(child instanceof Component)) {
-                throw new Error("VStack children must be instances of Component.");
-            }
             let childStartPos = { ...cursor };
-            while (occupancyMap.has(`${childStartPos.row}:${childStartPos.col}`)) {
+            while (renderer.occupancyMap.has(`${childStartPos.row}:${childStartPos.col}`)) {
                 childStartPos.row++;
             }
 
-            const childCells = child.render(childStartPos, containerStyle, occupancyMap);
-            resolvedCells.push(...childCells);
+            const childCells = child.render(renderer, childStartPos, containerStyle);
+            resolved.push(...childCells);
 
             let childMaxRow = 0;
             childCells.forEach(c => {
@@ -310,7 +318,7 @@ class VStack extends Component {
 
             cursor.row = childMaxRow + 1;
         }
-        return resolvedCells;
+        return resolved;
     }
 }
 
@@ -335,12 +343,11 @@ class Cell extends Component {
         this.props = { type, style, note, colSpan, rowSpan };
     }
 
-    render(position, inheritedStyle, occupancyMap) {
+    render(renderer, position, inheritedStyle) {
         const { type, style, note, colSpan, rowSpan } = this.props;
         const finalType = type || new Text();
         const finalStyle = style || new Style();
-
-        const mergedStyle = mergeStyles(inheritedStyle, finalStyle);
+        const mergedStyle = renderer._mergeStyles(inheritedStyle, finalStyle);
         
         const resolvedCell = {
             row: position.row,
@@ -350,9 +357,13 @@ class Cell extends Component {
 
         for (let r = 0; r < (rowSpan || 1); r++) {
             for (let c = 0; c < (colSpan || 1); c++) {
-                occupancyMap.add(`${position.row + r}:${position.col + c}`);
+                renderer.occupancyMap.add(`${position.row + r}:${position.col + c}`);
             }
         }
         return [resolvedCell];
     }
+}
+
+function render(rootComponent, targetSheet) {
+    new Renderer(targetSheet).render(rootComponent);
 }
