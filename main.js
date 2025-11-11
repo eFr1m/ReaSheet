@@ -6,9 +6,6 @@
  * the ReaSheets framework, including cell spanning, collision handling,
  * complex layouts, forms, and conditional formatting.
  *
- * To run these examples in Google Apps Script:
- * 1. Select one of the example functions (e.g., cellSpanningExample)
- * 2. Click the "Run" button in the Apps Script editor
  * =======================================================================
  */
 
