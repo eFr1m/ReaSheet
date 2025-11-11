@@ -11,31 +11,38 @@
  */
 
 function ToDoItem({ id, description, status, isDone, isEven = false }) {
-    const rowStyle = isEven ? new Style({ backgroundColor: '#f3f3f3' }) : new Style();
+  const rowStyle = isEven
+    ? new Style({ backgroundColor: "#f3f3f3" })
+    : new Style();
 
-    // Dropdown options with conditional formatting
-    const statusOptions = [
-        { value: 'Pending', style: new Style({ backgroundColor: '#fff2cc' }) },
-        { value: 'In Progress', style: new Style({ backgroundColor: '#cfe2f3' }) },
-        { value: 'Complete', style: new Style({ backgroundColor: '#d9ead3' }) }
-    ];
+  // Dropdown options with conditional formatting
+  const statusOptions = [
+    { value: "Pending", style: new Style({ backgroundColor: "#fff2cc" }) },
+    { value: "In Progress", style: new Style({ backgroundColor: "#cfe2f3" }) },
+    { value: "Complete", style: new Style({ backgroundColor: "#d9ead3" }) },
+  ];
 
-    return new HStack({
-        style: rowStyle,
-        children: [
-            new Cell({ type: new Text(id.split('-')[0]), style: new Style({ font: { bold: true } }) }),
-            new Cell({ type: new Text(id.split('-')[1]) }),
-            new Cell({ type: new Text(description), colSpan: 3 }),
-            new Cell({
-                type: new Dropdown({
-                    values: statusOptions,
-                    selected: status
-                })
-            }),
-            new Cell({ type: new DatePicker({ format: 'yyyy-mm-dd', value: new Date() }) }),
-            new Cell({ type: new Checkbox(isDone) })
-        ]
-    });
+  return new HStack({
+    style: rowStyle,
+    children: [
+      new Cell({
+        type: new Text(id.split("-")[0]),
+        style: new Style({ font: { bold: true } }),
+      }),
+      new Cell({ type: new Text(id.split("-")[1]) }),
+      new Cell({ type: new Text(description), colSpan: 3 }),
+      new Cell({
+        type: new Dropdown({
+          values: statusOptions,
+          selected: status,
+        }),
+      }),
+      new Cell({
+        type: new DatePicker({ format: "yyyy-mm-dd", value: new Date() }),
+      }),
+      new Cell({ type: new Checkbox(isDone) }),
+    ],
+  });
 }
 
 /**
@@ -64,15 +71,15 @@ function createToDoListSheet() {
   });
 
   const header = new HStack({
-        style: headerStyle,
-        children: [
-            new Cell({ type: new Text('TASK ID'), colSpan: 2 }),
-            new Cell({ type: new Text('DESCRIPTION'), colSpan: 3 }),
-            new Cell({ type: new Text('STATUS') }),
-            new Cell({ type: new Text('DUE DATE') }),
-            new Cell({ type: new Text('DONE') })
-        ]
-    });
+    style: headerStyle,
+    children: [
+      new Cell({ type: new Text("TASK ID"), colSpan: 2 }),
+      new Cell({ type: new Text("DESCRIPTION"), colSpan: 3 }),
+      new Cell({ type: new Text("STATUS") }),
+      new Cell({ type: new Text("DUE DATE") }),
+      new Cell({ type: new Text("DONE") }),
+    ],
+  });
 
   // 3. Define the entire sheet layout using components
   const myToDoList = new VStack({
@@ -80,9 +87,25 @@ function createToDoListSheet() {
     style: new Style({ font: { family: "Arial", size: 10 } }),
     children: [
       header,
-      ToDoItem({ id: 'PROJ-A-101', description: 'Finalize Q3 report.', status: 'In Progress', isDone: false }),
-      ToDoItem({ id: 'PROJ-B-205', description: 'Onboard new team members.', status: 'Pending', isDone: false, isEven: true }),
-      ToDoItem({ id: 'PROJ-A-102', description: 'Prepare slides for stakeholder meeting.', status: 'Complete', isDone: true }),
+      ToDoItem({
+        id: "PROJ-A-101",
+        description: "Finalize Q3 report.",
+        status: "In Progress",
+        isDone: false,
+      }),
+      ToDoItem({
+        id: "PROJ-B-205",
+        description: "Onboard new team members.",
+        status: "Pending",
+        isDone: false,
+        isEven: true,
+      }),
+      ToDoItem({
+        id: "PROJ-A-102",
+        description: "Prepare slides for stakeholder meeting.",
+        status: "Complete",
+        isDone: true,
+      }),
     ],
   });
 
@@ -114,7 +137,7 @@ function createFeatureTestSheet() {
         style: new Style({ font: { bold: true, size: 18 } }),
       }),
 
-      new TestSection({
+      TestSection({
         title: "--- Text Tests ---",
         children: [
           new HStack({
@@ -128,7 +151,21 @@ function createFeatureTestSheet() {
         ],
       }),
 
-      new TestSection({
+      TestSection({
+        title: "--- Number Tests ---",
+        children: [
+          new HStack({
+            children: [
+              new Cell({ type: new Number(123) }),
+              new Cell({ type: new Number(0.98, NumberFormats.PERCENTAGE) }),
+              new Cell({ type: new Number(1234.56, NumberFormats.CURRENCY) }),
+              new Cell({ type: new Number(123.456, "0.00") }),
+            ],
+          }),
+        ],
+      }),
+
+      TestSection({
         title: "--- Style Tests ---",
         children: [
           new HStack({
@@ -159,7 +196,7 @@ function createFeatureTestSheet() {
         ],
       }),
 
-      new TestSection({
+      TestSection({
         title: "--- Width/Height & Border Tests ---",
         children: [
           new HStack({
@@ -192,7 +229,7 @@ function createFeatureTestSheet() {
         ],
       }),
 
-      new TestSection({
+      TestSection({
         title: "--- Component Tests ---",
         children: [
           new HStack({
@@ -206,14 +243,17 @@ function createFeatureTestSheet() {
                 }),
               }),
               new Cell({
-                type: new DatePicker({ value: new Date() }),
+                type: new DatePicker({
+                  value: new Date(),
+                  format: "yyyy-mm-dd",
+                }),
               }),
             ],
           }),
         ],
       }),
 
-      new TestSection({
+      TestSection({
         title: "--- Wrap Strategy Test ---",
         children: [
           new HStack({

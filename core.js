@@ -22,6 +22,11 @@ const BorderThickness = {
     DOUBLE: SpreadsheetApp.BorderStyle.DOUBLE
 };
 
+const NumberFormats = {
+    PERCENTAGE: '0.00%',
+    CURRENCY: '$#,##0.00'
+};
+
 class Component {
     constructor() {
         // The base component does not hold any data.
@@ -143,8 +148,26 @@ class DatePicker extends Type {
         if (this.props.format) {
             directives.numberFormat = this.props.format;
         }
-        if (this.props.value instanceof Date) {
-            this.props.value = this.props.value.toLocaleDateString();
+        return directives;
+    }
+}
+
+class Number extends Type {
+    constructor(value, format = '0') {
+        super();
+        if (typeof value !== 'number') {
+            throw new Error("Number component requires a number value.");
+        }
+        if (format && typeof format !== 'string') {
+            throw new Error("format must be a string.");
+        }
+        this.props = { value, format };
+    }
+
+    getRenderDirectives(range) {
+        const directives = {};
+        if (this.props.format) {
+            directives.numberFormat = this.props.format;
         }
         return directives;
     }
@@ -325,7 +348,7 @@ class VStack extends Component {
 }
 
 class Cell extends Component {
-    constructor({ type, style, note = '', colSpan = 1, rowSpan = 1 }) {
+    constructor({ type = new Text(''), style, note = '', colSpan = 1, rowSpan = 1 }) {
         super();
         if (type && !(type instanceof Type)) {
             throw new Error("Cell 'type' prop must be an instance of Type.");
