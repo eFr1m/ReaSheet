@@ -144,7 +144,7 @@ A cell with a dropdown list.
   - If an array of objects `{ value: string, style: Style }`, it creates a dropdown where each option has its own conditional formatting rule.
 - **`selected`**: `string` (Optional) - The initially selected value. Defaults to the first item in the `values` array.
 
-#### `Number`
+#### `NumberCell`
 
 A numeric value with optional formatting.
 
@@ -316,7 +316,7 @@ function dashboardExample() {
                 children: [
                   new Cell({ type: new Text("Total Sales:") }),
                   new Cell({
-                    type: new Number(150000, NumberFormats.CURRENCY),
+                    type: new NumberCell(150000, NumberFormats.CURRENCY),
                   }),
                 ],
               }),
@@ -324,7 +324,7 @@ function dashboardExample() {
                 children: [
                   new Cell({ type: new Text("Conversion Rate:") }),
                   new Cell({
-                    type: new Number(0.35, NumberFormats.PERCENTAGE),
+                    type: new NumberCell(0.35, NumberFormats.PERCENTAGE),
                   }),
                 ],
               }),
@@ -499,9 +499,15 @@ function tableWithConditionalFormattingExample() {
                 : new Style(),
             children: [
               new Cell({ type: new Text(row.product) }),
-              new Cell({ type: new Number(row.q1, NumberFormats.CURRENCY) }),
-              new Cell({ type: new Number(row.q2, NumberFormats.CURRENCY) }),
-              new Cell({ type: new Number(row.q3, NumberFormats.CURRENCY) }),
+              new Cell({
+                type: new NumberCell(row.q1, NumberFormats.CURRENCY),
+              }),
+              new Cell({
+                type: new NumberCell(row.q2, NumberFormats.CURRENCY),
+              }),
+              new Cell({
+                type: new NumberCell(row.q3, NumberFormats.CURRENCY),
+              }),
               new Cell({
                 type: new Dropdown({
                   values: statusOptions,

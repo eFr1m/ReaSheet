@@ -7,25 +7,117 @@
  * =======================================================================
  */
 
-const WrapStrategy = {
+const WrapStrategy = Object.freeze({
   WRAP: SpreadsheetApp.WrapStrategy.WRAP,
   OVERFLOW: SpreadsheetApp.WrapStrategy.OVERFLOW,
   CLIP: SpreadsheetApp.WrapStrategy.CLIP,
-};
+});
 
-const BorderThickness = {
+const BorderThickness = Object.freeze({
   DOTTED: SpreadsheetApp.BorderStyle.DOTTED,
   DASHED: SpreadsheetApp.BorderStyle.DASHED,
   SOLID: SpreadsheetApp.BorderStyle.SOLID,
   SOLID_MEDIUM: SpreadsheetApp.BorderStyle.SOLID_MEDIUM,
   SOLID_THICK: SpreadsheetApp.BorderStyle.SOLID_THICK,
   DOUBLE: SpreadsheetApp.BorderStyle.DOUBLE,
-};
+});
 
-const NumberFormats = {
+const NumberFormats = Object.freeze({
   PERCENTAGE: "0.00%",
   CURRENCY: "$#,##0.00",
+});
+
+// ========== Constants ==========
+
+/**
+ * Static constants used throughout the library.
+ */
+const Constants = {
+  FontWeight: Object.freeze({
+    BOLD: "bold",
+    NORMAL: "normal",
+  }),
+
+  FontStyle: Object.freeze({
+    ITALIC: "italic",
+    NORMAL: "normal",
+  }),
+
+  FontLine: Object.freeze({
+    UNDERLINE: "underline",
+    STRIKETHROUGH: "line-through",
+    NONE: null,
+  }),
+
+  NUMBER_FORMAT: "General",
+
+  BORDER_SIDES: Object.freeze([
+    { key: "top", args: [true, null, null, null, null, null] },
+    { key: "left", args: [null, true, null, null, null, null] },
+    { key: "bottom", args: [null, null, true, null, null, null] },
+    { key: "right", args: [null, null, null, true, null, null] },
+  ]),
 };
+
+/**
+ * Default values for style properties.
+ */
+const Defaults = {
+  FONT: Object.freeze({
+    color: "black",
+    size: 10,
+    family: "Arial",
+    bold: false,
+    italic: false,
+    underline: false,
+    strikethrough: false,
+  }),
+
+  ALIGNMENT: Object.freeze({
+    horizontal: "left",
+    vertical: "top",
+  }),
+
+  WRAP: Object.freeze({
+    strategy: WrapStrategy.OVERFLOW,
+  }),
+
+  ROTATION: Object.freeze({
+    angle: 0,
+  }),
+};
+
+// ========== Validation Helpers ==========
+
+function assertType(value, type, name, allowNull = false) {
+  if (allowNull && value === null) return;
+  if (type === "array") {
+    if (!Array.isArray(value)) {
+      throw new Error(`${name} must be an array.`);
+    }
+  } else if (typeof value !== type) {
+    throw new Error(`${name} must be a ${type}.`);
+  }
+}
+
+function assertInstance(value, constructor, name, allowNull = false) {
+  if (allowNull && value == null) return;
+  if (!(value instanceof constructor)) {
+    throw new Error(`${name} must be an instance of ${constructor.name}.`);
+  }
+}
+
+function assertPositive(value, name) {
+  if (typeof value !== "number" || value < 1) {
+    throw new Error(`${name} must be a positive number.`);
+  }
+}
+
+function assertNonEmptyArray(value, name) {
+  if (!Array.isArray(value) || value.length === 0) {
+    throw new Error(`${name} must be a non-empty array.`);
+  }
+}
 
 class Component {
   constructor() {
@@ -50,19 +142,15 @@ class Type {
 class Text extends Type {
   constructor(value = "") {
     super();
-    if (typeof value !== "string") {
-      throw new Error("Text component requires a string value.");
-    }
-    this.props = { value: value };
+    assertType(value, "string", "Text value");
+    this.props = { value };
   }
 }
 
 class Checkbox extends Type {
   constructor(isChecked = false) {
     super();
-    if (typeof isChecked !== "boolean") {
-      throw new Error("Checkbox component requires a boolean value.");
-    }
+    assertType(isChecked, "boolean", "Checkbox value");
     this.props = { value: isChecked };
   }
 
@@ -73,42 +161,47 @@ class Checkbox extends Type {
   }
 }
 
+function validateDropdownObjectArray(values) {
+  values.forEach((v, i) => {
+    if (!("value" in v) || !("style" in v)) {
+      throw new Error(
+        `Dropdown values[${i}] must have 'value' and 'style' properties.`
+      );
+    }
+    assertInstance(v.style, Style, `Dropdown values[${i}].style`);
+  });
+}
+
+/**
+ * Dropdown type with optional conditional formatting per value.
+ */
 class Dropdown extends Type {
   constructor({ values, selected = null }) {
     super();
-    if (!values || !Array.isArray(values) || values.length === 0) {
-      throw new Error(
-        "Dropdown component requires a non-empty 'values' prop array."
-      );
-    }
+    assertNonEmptyArray(values, "Dropdown values");
 
     const isObjectArray =
       typeof values[0] === "object" &&
       values[0] !== null &&
       "value" in values[0];
     if (isObjectArray) {
-      values.forEach((v) => {
-        if (!("value" in v) || !("style" in v) || !(v.style instanceof Style)) {
-          throw new Error(
-            "Dropdown 'values' array must be composed of objects with 'value' and 'style' properties, and 'style' must be an instance of Style."
-          );
-        }
-      });
+      validateDropdownObjectArray(values);
     }
+
     const plainValues = isObjectArray ? values.map((v) => v.value) : values;
     const initialSelection = selected !== null ? selected : plainValues[0];
 
     if (selected && !plainValues.includes(selected)) {
       throw new Error(
-        `The selected value "${selected}" is not in the list of available values.`
+        `Selected value "${selected}" is not in the values list.`
       );
     }
 
     this.props = {
-      values: values,
-      plainValues: plainValues,
+      values,
+      plainValues,
       value: initialSelection,
-      isObjectArray: isObjectArray,
+      isObjectArray,
     };
   }
 
@@ -143,11 +236,12 @@ class Dropdown extends Type {
 class DatePicker extends Type {
   constructor({ format = "", value = null } = {}) {
     super();
-    if (typeof format !== "string") {
-      throw new Error("DatePicker format must be a string.");
-    }
-    if (value && (!(value instanceof Date) || isNaN(value.getTime()))) {
-      throw new Error("DatePicker 'value' prop must be a valid Date object.");
+    assertType(format, "string", "DatePicker format");
+    if (value !== null) {
+      assertInstance(value, Date, "DatePicker value");
+      if (isNaN(value.getTime())) {
+        throw new Error("DatePicker value must be a valid Date.");
+      }
     }
     this.props = { format, value };
   }
@@ -163,15 +257,11 @@ class DatePicker extends Type {
   }
 }
 
-class Number extends Type {
+class NumberCell extends Type {
   constructor(value, format = "0") {
     super();
-    if (typeof value !== "number") {
-      throw new Error("Number component requires a number value.");
-    }
-    if (format && typeof format !== "string") {
-      throw new Error("format must be a string.");
-    }
+    assertType(value, "number", "NumberCell value");
+    assertType(format, "string", "NumberCell format");
     this.props = { value, format };
   }
 
@@ -184,38 +274,35 @@ class Number extends Type {
   }
 }
 
+const BORDER_THICKNESS_VALUES = Object.freeze(Object.values(BorderThickness));
+
+function validateBorderSide(side, sideName) {
+  if (!side) return;
+  assertType(side, "object", `Border '${sideName}'`);
+  assertType(side.color, "string", `Border '${sideName}'.color`);
+  if (!BORDER_THICKNESS_VALUES.includes(side.thickness)) {
+    throw new Error(
+      `Border '${sideName}'.thickness must be a valid BorderThickness.`
+    );
+  }
+}
+
+/**
+ * Defines border styling for cell edges.
+ */
 class Border {
   constructor({ top = null, bottom = null, left = null, right = null }) {
-    const validateBorderSide = (side, sideName) => {
-      if (side) {
-        if (typeof side !== "object" || side === null) {
-          throw new Error(`Border '${sideName}' must be an object.`);
-        }
-        if (!("color" in side) || typeof side.color !== "string") {
-          throw new Error(
-            `Border '${sideName}' must have a 'color' property of type string.`
-          );
-        }
-        if (
-          !("thickness" in side) ||
-          !Object.values(BorderThickness).includes(side.thickness)
-        ) {
-          throw new Error(
-            `Border '${sideName}' must have a 'thickness' property that is a valid BorderThickness.`
-          );
-        }
-      }
-    };
-
     validateBorderSide(top, "top");
     validateBorderSide(bottom, "bottom");
     validateBorderSide(left, "left");
     validateBorderSide(right, "right");
-
     this.props = { top, bottom, left, right };
   }
 }
 
+/**
+ * Encapsulates all visual styling for a cell.
+ */
 class Style {
   constructor({
     backgroundColor = null,
@@ -227,64 +314,26 @@ class Style {
     width = null,
     height = null,
   } = {}) {
-    if (backgroundColor && typeof backgroundColor !== "string") {
-      throw new Error("Style 'backgroundColor' must be a string.");
-    }
-    if (typeof font !== "object" || font === null) {
-      throw new Error("Style 'font' must be an object.");
-    }
-    if (typeof alignment !== "object" || alignment === null) {
-      throw new Error("Style 'alignment' must be an object.");
-    }
-    if (typeof wrap !== "object" || wrap === null) {
-      throw new Error("Style 'wrap' must be an object.");
-    }
+    assertType(backgroundColor, "string", "Style backgroundColor", true);
+    assertType(font, "object", "Style font");
+    assertType(alignment, "object", "Style alignment");
+    assertType(wrap, "object", "Style wrap");
+    assertType(rotation, "object", "Style rotation");
+    assertType(width, "number", "Style width", true);
+    assertType(height, "number", "Style height", true);
+    assertInstance(border, Border, "Style border", true);
+
     if (wrap.strategy && !Object.values(WrapStrategy).includes(wrap.strategy)) {
       throw new Error(`Invalid wrap strategy: ${wrap.strategy}`);
     }
-    if (border && !(border instanceof Border)) {
-      throw new Error("Style 'border' prop must be an instance of Border.");
-    }
-    if (typeof rotation !== "object" || rotation === null) {
-      throw new Error("Style 'rotation' must be an object.");
-    }
-    if (width !== null && typeof width !== "number") {
-      throw new Error("Style 'width' must be a number.");
-    }
-    if (height !== null && typeof height !== "number") {
-      throw new Error("Style 'height' must be a number.");
-    }
-
-    const defaultFont = {
-      color: "black",
-      size: 10,
-      family: "Arial",
-      bold: false,
-      italic: false,
-      underline: false,
-      strikethrough: false,
-    };
-
-    const defaultAlignment = {
-      horizontal: "left",
-      vertical: "top",
-    };
-
-    const defaultWrap = {
-      strategy: WrapStrategy.OVERFLOW,
-    };
-
-    const defaultRotation = {
-      angle: 0,
-    };
 
     this.props = {
       backgroundColor,
-      font: { ...defaultFont, ...font },
-      alignment: { ...defaultAlignment, ...alignment },
-      wrap: { ...defaultWrap, ...wrap },
+      font: { ...Defaults.FONT, ...font },
+      alignment: { ...Defaults.ALIGNMENT, ...alignment },
+      wrap: { ...Defaults.WRAP, ...wrap },
       border: border,
-      rotation: { ...defaultRotation, ...rotation },
+      rotation: { ...Defaults.ROTATION, ...rotation },
       width,
       height,
     };
@@ -294,14 +343,8 @@ class Style {
 class HStack extends Component {
   constructor({ children, style = null }) {
     super();
-    if (!children || !Array.isArray(children)) {
-      throw new Error(
-        "HStack component requires a 'children' prop, which must be an array."
-      );
-    }
-    if (style && !(style instanceof Style)) {
-      throw new Error("HStack 'style' prop must be an instance of Style.");
-    }
+    assertType(children, "array", "HStack children");
+    assertInstance(style, Style, "HStack style", true);
     this.props = { children, style };
   }
 
@@ -340,14 +383,8 @@ class HStack extends Component {
 class VStack extends Component {
   constructor({ children, style = null }) {
     super();
-    if (!children || !Array.isArray(children)) {
-      throw new Error(
-        "VStack component requires a 'children' prop, which must be an array."
-      );
-    }
-    if (style && !(style instanceof Style)) {
-      throw new Error("VStack 'style' prop must be an instance of Style.");
-    }
+    assertType(children, "array", "VStack children");
+    assertInstance(style, Style, "VStack style", true);
     this.props = { children, style };
   }
 
@@ -383,6 +420,9 @@ class VStack extends Component {
   }
 }
 
+/**
+ * Represents a single spreadsheet cell with type, style, and span options.
+ */
 class Cell extends Component {
   constructor({
     type = new Text(""),
@@ -392,21 +432,11 @@ class Cell extends Component {
     rowSpan = 1,
   }) {
     super();
-    if (type && !(type instanceof Type)) {
-      throw new Error("Cell 'type' prop must be an instance of Type.");
-    }
-    if (style && !(style instanceof Style)) {
-      throw new Error("Cell 'style' prop must be an instance of Style.");
-    }
-    if (typeof note !== "string") {
-      throw new Error("Cell 'note' prop must be a string.");
-    }
-    if (typeof colSpan !== "number" || colSpan < 1) {
-      throw new Error("Cell 'colSpan' prop must be a positive number.");
-    }
-    if (typeof rowSpan !== "number" || rowSpan < 1) {
-      throw new Error("Cell 'rowSpan' prop must be a positive number.");
-    }
+    assertInstance(type, Type, "Cell type", true);
+    assertInstance(style, Style, "Cell style", true);
+    assertType(note, "string", "Cell note");
+    assertPositive(colSpan, "Cell colSpan");
+    assertPositive(rowSpan, "Cell rowSpan");
     this.props = { type, style, note, colSpan, rowSpan };
   }
 
@@ -437,6 +467,9 @@ class Cell extends Component {
 ========================================================================
 */
 
+/**
+ * Renders a component tree to a Google Sheets target.
+ */
 class Renderer {
   constructor(targetSheet) {
     if (!targetSheet) {
@@ -496,14 +529,30 @@ class Renderer {
   }
 
   _commit() {
-    if (!this.resolvedCells || this.resolvedCells.length === 0) {
-      return;
-    }
+    if (!this.resolvedCells || this.resolvedCells.length === 0) return;
 
+    const bounds = this._calculateBounds();
+    if (!bounds) return;
+
+    const { minRow, minCol, numRows, numCols } = bounds;
+    const fullRange = this.sheet.getRange(minRow, minCol, numRows, numCols);
+    fullRange.clear();
+
+    const grids = this._buildGrids(bounds);
+    this._applyStyles(fullRange, grids);
+    this._applyDimensions(grids.widths, grids.heights);
+    this._applyRotations(bounds, grids.rotations);
+    this._applyBorders(bounds, grids.borders);
+    this._applyConditionalFormats(grids.conditionalFormats);
+    this._applyMerges(grids.merges);
+  }
+
+  _calculateBounds() {
     let minRow = Infinity,
       maxRow = 0,
       minCol = Infinity,
       maxCol = 0;
+
     this.resolvedCells.forEach((cell) => {
       const { row, col } = cell;
       const { rowSpan = 1, colSpan = 1 } = cell.descriptor.props;
@@ -516,199 +565,200 @@ class Renderer {
     const numRows = maxRow - minRow + 1;
     const numCols = maxCol - minCol + 1;
 
-    if (numRows <= 0 || numCols <= 0) return;
+    if (numRows <= 0 || numCols <= 0) return null;
+    return { minRow, maxRow, minCol, maxCol, numRows, numCols };
+  }
 
-    const fullRange = this.sheet.getRange(minRow, minCol, numRows, numCols);
-    fullRange.clear();
-
+  _buildGrids({ minRow, minCol, numRows, numCols }) {
     const createGrid = (fill = null) =>
       Array.from({ length: numRows }, () => Array(numCols).fill(fill));
-    const values = createGrid();
-    const backgrounds = createGrid();
-    const fontColors = createGrid();
-    const fontSizes = createGrid();
-    const fontWeights = createGrid();
-    const fontStyles = createGrid();
-    const fontLines = createGrid();
-    const horizontalAlignments = createGrid();
-    const verticalAlignments = createGrid();
-    const wrapStrategies = createGrid(WrapStrategy.OVERFLOW);
-    const notes = createGrid();
-    const validations = createGrid();
-    const numberFormats = createGrid("General");
-    const rotations = createGrid(0);
-    const borders = createGrid(false);
-    const widths = {}; // Using an object to store column widths
-    const heights = {}; // Using an object to store row heights
-    const merges = [];
-    const conditionalFormats = [];
+
+    const grids = {
+      values: createGrid(),
+      backgrounds: createGrid(),
+      fontColors: createGrid(),
+      fontSizes: createGrid(),
+      fontWeights: createGrid(),
+      fontStyles: createGrid(),
+      fontLines: createGrid(),
+      horizontalAlignments: createGrid(),
+      verticalAlignments: createGrid(),
+      wrapStrategies: createGrid(WrapStrategy.OVERFLOW),
+      notes: createGrid(),
+      validations: createGrid(),
+      numberFormats: createGrid(Constants.NUMBER_FORMAT),
+      rotations: createGrid(0),
+      borders: createGrid(false),
+      widths: {},
+      heights: {},
+      merges: [],
+      conditionalFormats: [],
+    };
 
     this.resolvedCells.forEach((cell) => {
-      const { props } = cell.descriptor;
-      const { type, style, note, rowSpan = 1, colSpan = 1 } = props;
-      const directives = type.getRenderDirectives(
-        this.sheet.getRange(cell.row, cell.col, rowSpan, colSpan)
-      );
-
-      if (style.props.width !== null) {
-        widths[cell.col] = style.props.width;
-      }
-      if (style.props.height !== null) {
-        heights[cell.row] = style.props.height;
-      }
-
-      const cellData = {
-        value: type.props.value,
-        note: note,
-        background: style.props.backgroundColor,
-        fontColor: style.props.font.color,
-        fontSize: style.props.font.size,
-        fontWeight: style.props.font.bold ? "bold" : "normal",
-        fontStyle: style.props.font.italic ? "italic" : "normal",
-        fontLine: style.props.font.underline
-          ? "underline"
-          : style.props.font.strikethrough
-          ? "line-through"
-          : null,
-        hAlign: style.props.alignment.horizontal,
-        vAlign: style.props.alignment.vertical,
-        wrap: style.props.wrap.strategy,
-        validation: directives.validation || null,
-        border: style.props.border.props,
-        numberFormat: directives.numberFormat || null,
-        rotation: style.props.rotation.angle,
-      };
-
-      if (directives.conditionalFormatRules) {
-        conditionalFormats.push(...directives.conditionalFormatRules);
-      }
-
-      for (let rOffset = 0; rOffset < rowSpan; rOffset++) {
-        for (let cOffset = 0; cOffset < colSpan; cOffset++) {
-          const r = cell.row - minRow + rOffset;
-          const c = cell.col - minCol + cOffset;
-
-          values[r][c] = rOffset === 0 && cOffset === 0 ? cellData.value : "";
-          notes[r][c] = cellData.note;
-          backgrounds[r][c] = cellData.background;
-          fontColors[r][c] = cellData.fontColor;
-          fontSizes[r][c] = cellData.fontSize;
-          fontWeights[r][c] = cellData.fontWeight;
-          fontStyles[r][c] = cellData.fontStyle;
-          fontLines[r][c] = cellData.fontLine;
-          horizontalAlignments[r][c] = cellData.hAlign;
-          verticalAlignments[r][c] = cellData.vAlign;
-          wrapStrategies[r][c] = cellData.wrap;
-          validations[r][c] = cellData.validation;
-          rotations[r][c] = cellData.rotation;
-          if (cellData.numberFormat) {
-            numberFormats[r][c] = cellData.numberFormat;
-          }
-
-          const { top, bottom, left, right } = cellData.border;
-          borders[r][c] = {
-            top: rOffset === 0 && top,
-            bottom: rOffset === rowSpan - 1 && bottom,
-            left: cOffset === 0 && left,
-            right: cOffset === colSpan - 1 && right,
-          };
-        }
-      }
-
-      if (rowSpan > 1 || colSpan > 1) {
-        merges.push(this.sheet.getRange(cell.row, cell.col, rowSpan, colSpan));
-      }
+      this._populateGridsForCell(cell, grids, minRow, minCol);
     });
 
-    fullRange
-      .setNumberFormats(numberFormats)
-      .setDataValidations(validations)
-      .setValues(values)
-      .setNotes(notes)
-      .setBackgrounds(backgrounds)
-      .setFontColors(fontColors)
-      .setFontSizes(fontSizes)
-      .setFontWeights(fontWeights)
-      .setFontStyles(fontStyles)
-      .setFontLines(fontLines)
-      .setHorizontalAlignments(horizontalAlignments)
-      .setVerticalAlignments(verticalAlignments)
-      .setWrapStrategies(wrapStrategies);
+    return grids;
+  }
 
+  _populateGridsForCell(cell, grids, minRow, minCol) {
+    const { props } = cell.descriptor;
+    const { type, style, note, rowSpan = 1, colSpan = 1 } = props;
+    const directives = type.getRenderDirectives(
+      this.sheet.getRange(cell.row, cell.col, rowSpan, colSpan)
+    );
+
+    if (style.props.width !== null) grids.widths[cell.col] = style.props.width;
+    if (style.props.height !== null)
+      grids.heights[cell.row] = style.props.height;
+
+    const cellData = this._extractCellData(type, style, note, directives);
+
+    if (directives.conditionalFormatRules) {
+      grids.conditionalFormats.push(...directives.conditionalFormatRules);
+    }
+
+    for (let rOffset = 0; rOffset < rowSpan; rOffset++) {
+      for (let cOffset = 0; cOffset < colSpan; cOffset++) {
+        const r = cell.row - minRow + rOffset;
+        const c = cell.col - minCol + cOffset;
+        this._fillGridCell(
+          grids,
+          r,
+          c,
+          cellData,
+          rOffset,
+          cOffset,
+          rowSpan,
+          colSpan
+        );
+      }
+    }
+
+    if (rowSpan > 1 || colSpan > 1) {
+      grids.merges.push(
+        this.sheet.getRange(cell.row, cell.col, rowSpan, colSpan)
+      );
+    }
+  }
+
+  _extractCellData(type, style, note, directives) {
+    const { font, alignment, wrap, border, rotation } = style.props;
+    return {
+      value: type.props.value,
+      note,
+      background: style.props.backgroundColor,
+      fontColor: font.color,
+      fontSize: font.size,
+      fontWeight: font.bold
+        ? Constants.FontWeight.BOLD
+        : Constants.FontWeight.NORMAL,
+      fontStyle: font.italic
+        ? Constants.FontStyle.ITALIC
+        : Constants.FontStyle.NORMAL,
+      fontLine: font.underline
+        ? Constants.FontLine.UNDERLINE
+        : font.strikethrough
+        ? Constants.FontLine.STRIKETHROUGH
+        : Constants.FontLine.NONE,
+      hAlign: alignment.horizontal,
+      vAlign: alignment.vertical,
+      wrap: wrap.strategy,
+      validation: directives.validation || null,
+      border: border.props,
+      numberFormat: directives.numberFormat || null,
+      rotation: rotation.angle,
+    };
+  }
+
+  _fillGridCell(grids, r, c, cellData, rOffset, cOffset, rowSpan, colSpan) {
+    grids.values[r][c] = rOffset === 0 && cOffset === 0 ? cellData.value : "";
+    grids.notes[r][c] = cellData.note;
+    grids.backgrounds[r][c] = cellData.background;
+    grids.fontColors[r][c] = cellData.fontColor;
+    grids.fontSizes[r][c] = cellData.fontSize;
+    grids.fontWeights[r][c] = cellData.fontWeight;
+    grids.fontStyles[r][c] = cellData.fontStyle;
+    grids.fontLines[r][c] = cellData.fontLine;
+    grids.horizontalAlignments[r][c] = cellData.hAlign;
+    grids.verticalAlignments[r][c] = cellData.vAlign;
+    grids.wrapStrategies[r][c] = cellData.wrap;
+    grids.validations[r][c] = cellData.validation;
+    grids.rotations[r][c] = cellData.rotation;
+    if (cellData.numberFormat)
+      grids.numberFormats[r][c] = cellData.numberFormat;
+
+    const { top, bottom, left, right } = cellData.border;
+    grids.borders[r][c] = {
+      top: rOffset === 0 && top,
+      bottom: rOffset === rowSpan - 1 && bottom,
+      left: cOffset === 0 && left,
+      right: cOffset === colSpan - 1 && right,
+    };
+  }
+
+  _applyStyles(range, grids) {
+    range
+      .setNumberFormats(grids.numberFormats)
+      .setDataValidations(grids.validations)
+      .setValues(grids.values)
+      .setNotes(grids.notes)
+      .setBackgrounds(grids.backgrounds)
+      .setFontColors(grids.fontColors)
+      .setFontSizes(grids.fontSizes)
+      .setFontWeights(grids.fontWeights)
+      .setFontStyles(grids.fontStyles)
+      .setFontLines(grids.fontLines)
+      .setHorizontalAlignments(grids.horizontalAlignments)
+      .setVerticalAlignments(grids.verticalAlignments)
+      .setWrapStrategies(grids.wrapStrategies);
+  }
+
+  _applyDimensions(widths, heights) {
     for (const col in widths) {
       this.sheet.setColumnWidth(parseInt(col), widths[col]);
     }
     for (const row in heights) {
       this.sheet.setRowHeight(parseInt(row), heights[row]);
     }
+  }
 
+  _applyRotations({ minRow, minCol, numRows, numCols }, rotations) {
     for (let r = 0; r < numRows; r++) {
       for (let c = 0; c < numCols; c++) {
-        const rotation = rotations[r][c];
-        if (rotation !== 0) {
-          this.sheet.getRange(minRow + r, minCol + c).setTextRotation(rotation);
+        if (rotations[r][c] !== 0) {
+          this.sheet
+            .getRange(minRow + r, minCol + c)
+            .setTextRotation(rotations[r][c]);
         }
+      }
+    }
+  }
 
+  _applyBorders({ minRow, minCol, numRows, numCols }, borders) {
+    for (let r = 0; r < numRows; r++) {
+      for (let c = 0; c < numCols; c++) {
         const borderInfo = borders[r][c];
-        if (borderInfo) {
-          const range = this.sheet.getRange(minRow + r, minCol + c);
-          const { top, bottom, left, right } = borderInfo;
-          if (top) {
-            range.setBorder(
-              true,
-              null,
-              null,
-              null,
-              null,
-              null,
-              top.color,
-              top.thickness
-            );
-          }
-          if (left) {
-            range.setBorder(
-              null,
-              true,
-              null,
-              null,
-              null,
-              null,
-              left.color,
-              left.thickness
-            );
-          }
-          if (bottom) {
-            range.setBorder(
-              null,
-              null,
-              true,
-              null,
-              null,
-              null,
-              bottom.color,
-              bottom.thickness
-            );
-          }
-          if (right) {
-            range.setBorder(
-              null,
-              null,
-              null,
-              true,
-              null,
-              null,
-              right.color,
-              right.thickness
-            );
+        if (!borderInfo) continue;
+        const range = this.sheet.getRange(minRow + r, minCol + c);
+        for (const side of Constants.BORDER_SIDES) {
+          const border = borderInfo[side.key];
+          if (border) {
+            range.setBorder(...side.args, border.color, border.thickness);
           }
         }
       }
     }
+  }
 
+  _applyConditionalFormats(conditionalFormats) {
     if (conditionalFormats.length > 0) {
       this.sheet.setConditionalFormatRules(conditionalFormats);
     }
+  }
 
+  _applyMerges(merges) {
     merges.forEach((range) => range.merge());
   }
 }

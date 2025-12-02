@@ -198,7 +198,7 @@ function dashboardExample() {
             style: new Style({ font: { bold: true } }),
           }),
           new Cell({
-            type: new Number(250000, NumberFormats.CURRENCY),
+            type: new NumberCell(250000, NumberFormats.CURRENCY),
             style: metricStyle,
           }),
           new Cell({ type: new Text("") }),
@@ -207,7 +207,7 @@ function dashboardExample() {
             style: new Style({ font: { bold: true } }),
           }),
           new Cell({
-            type: new Number(0.15, NumberFormats.PERCENTAGE),
+            type: new NumberCell(0.15, NumberFormats.PERCENTAGE),
             style: metricStyle,
           }),
         ],
@@ -220,7 +220,7 @@ function dashboardExample() {
             style: new Style({ font: { bold: true } }),
           }),
           new Cell({
-            type: new Number(1250, "0"),
+            type: new NumberCell(1250, "0"),
             style: metricStyle,
           }),
           new Cell({ type: new Text("") }),
@@ -229,7 +229,7 @@ function dashboardExample() {
             style: new Style({ font: { bold: true } }),
           }),
           new Cell({
-            type: new Number(0.32, NumberFormats.PERCENTAGE),
+            type: new NumberCell(0.32, NumberFormats.PERCENTAGE),
             style: metricStyle,
           }),
         ],
@@ -268,9 +268,9 @@ function dashboardExample() {
       new HStack({
         children: [
           new Cell({ type: new Text("North America") }),
-          new Cell({ type: new Number(120000, NumberFormats.CURRENCY) }),
-          new Cell({ type: new Number(450, "0") }),
-          new Cell({ type: new Number(266.67, NumberFormats.CURRENCY) }),
+          new Cell({ type: new NumberCell(120000, NumberFormats.CURRENCY) }),
+          new Cell({ type: new NumberCell(450, "0") }),
+          new Cell({ type: new NumberCell(266.67, NumberFormats.CURRENCY) }),
         ],
       }),
 
@@ -278,18 +278,18 @@ function dashboardExample() {
         style: new Style({ backgroundColor: "#f2f2f2" }),
         children: [
           new Cell({ type: new Text("Europe") }),
-          new Cell({ type: new Number(85000, NumberFormats.CURRENCY) }),
-          new Cell({ type: new Number(320, "0") }),
-          new Cell({ type: new Number(265.63, NumberFormats.CURRENCY) }),
+          new Cell({ type: new NumberCell(85000, NumberFormats.CURRENCY) }),
+          new Cell({ type: new NumberCell(320, "0") }),
+          new Cell({ type: new NumberCell(265.63, NumberFormats.CURRENCY) }),
         ],
       }),
 
       new HStack({
         children: [
           new Cell({ type: new Text("Asia Pacific") }),
-          new Cell({ type: new Number(45000, NumberFormats.CURRENCY) }),
-          new Cell({ type: new Number(180, "0") }),
-          new Cell({ type: new Number(250, NumberFormats.CURRENCY) }),
+          new Cell({ type: new NumberCell(45000, NumberFormats.CURRENCY) }),
+          new Cell({ type: new NumberCell(180, "0") }),
+          new Cell({ type: new NumberCell(250, NumberFormats.CURRENCY) }),
         ],
       }),
     ],
@@ -522,9 +522,15 @@ function salesTableExample() {
                 : new Style(),
             children: [
               new Cell({ type: new Text(row.product) }),
-              new Cell({ type: new Number(row.q1, NumberFormats.CURRENCY) }),
-              new Cell({ type: new Number(row.q2, NumberFormats.CURRENCY) }),
-              new Cell({ type: new Number(row.q3, NumberFormats.CURRENCY) }),
+              new Cell({
+                type: new NumberCell(row.q1, NumberFormats.CURRENCY),
+              }),
+              new Cell({
+                type: new NumberCell(row.q2, NumberFormats.CURRENCY),
+              }),
+              new Cell({
+                type: new NumberCell(row.q3, NumberFormats.CURRENCY),
+              }),
               new Cell({
                 type: new Dropdown({
                   values: statusOptions,
@@ -761,15 +767,15 @@ function stylingSampleExample() {
           new HStack({
             children: [
               new Cell({
-                type: new Number(1234.56, NumberFormats.CURRENCY),
+                type: new NumberCell(1234.56, NumberFormats.CURRENCY),
                 style: new Style({ alignment: { horizontal: "right" } }),
               }),
               new Cell({
-                type: new Number(0.75, NumberFormats.PERCENTAGE),
+                type: new NumberCell(0.75, NumberFormats.PERCENTAGE),
                 style: new Style({ alignment: { horizontal: "right" } }),
               }),
               new Cell({
-                type: new Number(123.456, "0.00"),
+                type: new NumberCell(123.456, "0.00"),
                 style: new Style({ alignment: { horizontal: "right" } }),
               }),
             ],
@@ -945,10 +951,14 @@ function createFeatureTestSheet() {
         children: [
           new HStack({
             children: [
-              new Cell({ type: new Number(123) }),
-              new Cell({ type: new Number(0.98, NumberFormats.PERCENTAGE) }),
-              new Cell({ type: new Number(1234.56, NumberFormats.CURRENCY) }),
-              new Cell({ type: new Number(123.456, "0.00") }),
+              new Cell({ type: new NumberCell(123) }),
+              new Cell({
+                type: new NumberCell(0.98, NumberFormats.PERCENTAGE),
+              }),
+              new Cell({
+                type: new NumberCell(1234.56, NumberFormats.CURRENCY),
+              }),
+              new Cell({ type: new NumberCell(123.456, "0.00") }),
             ],
           }),
         ],
