@@ -1,11 +1,16 @@
 /**
  * =======================================================================
- * ReaSheets Core Component Library
+ * ReaSheets (Single-File Distribution)
  *
- * This file contains the fundamental building blocks for the declarative
- * UI framework for Google Sheets.
+ * A declarative, component-based library for Google Apps Script.
  * =======================================================================
  */
+
+/*
+========================================================================
+                            1. CONSTANTS & ENUMS
+========================================================================
+*/
 
 const WrapStrategy = Object.freeze({
   WRAP: SpreadsheetApp.WrapStrategy.WRAP,
@@ -27,11 +32,6 @@ const NumberFormats = Object.freeze({
   CURRENCY: "$#,##0.00",
 });
 
-// ========== Constants ==========
-
-/**
- * Static constants used throughout the library.
- */
 const Constants = {
   FontWeight: Object.freeze({
     BOLD: "bold",
@@ -59,9 +59,6 @@ const Constants = {
   ]),
 };
 
-/**
- * Default values for style properties.
- */
 const Defaults = {
   FONT: Object.freeze({
     color: "black",
@@ -87,7 +84,11 @@ const Defaults = {
   }),
 };
 
-// ========== Validation Helpers ==========
+/*
+========================================================================
+                            2. UTILITIES
+========================================================================
+*/
 
 function assertType(value, type, name, allowNull = false) {
   if (allowNull && value === null) return;
@@ -119,15 +120,92 @@ function assertNonEmptyArray(value, name) {
   }
 }
 
-class Component {
-  constructor() {
-    // The base component does not hold any data.
-  }
+function areBordersEqual(b1, b2) {
+  if (b1 === b2) return true;
+  if (!b1 || !b2) return false;
 
-  render(renderer, position, inheritedStyle) {
-    throw new Error("Component must implement a render method.");
+  const sides = ["top", "bottom", "left", "right"];
+  for (const side of sides) {
+    const s1 = b1[side];
+    const s2 = b2[side];
+    if (s1 === s2) continue;
+    if (!s1 || !s2) return false;
+    if (s1.color !== s2.color || s1.thickness !== s2.thickness) return false;
+  }
+  return true;
+}
+
+/*
+========================================================================
+                            3. STYLING SYSTEM
+========================================================================
+*/
+
+const BORDER_THICKNESS_VALUES = Object.freeze(Object.values(BorderThickness));
+
+function validateBorderSide(side, sideName) {
+  if (!side) return;
+  assertType(side, "object", `Border '${sideName}'`);
+  assertType(side.color, "string", `Border '${sideName}'.color`);
+  if (!BORDER_THICKNESS_VALUES.includes(side.thickness)) {
+    throw new Error(
+      `Border '${sideName}'.thickness must be a valid BorderThickness.`
+    );
   }
 }
+
+class Border {
+  constructor({ top = null, bottom = null, left = null, right = null }) {
+    validateBorderSide(top, "top");
+    validateBorderSide(bottom, "bottom");
+    validateBorderSide(left, "left");
+    validateBorderSide(right, "right");
+    this.props = { top, bottom, left, right };
+  }
+}
+
+class Style {
+  constructor({
+    backgroundColor = null,
+    font = {},
+    alignment = {},
+    wrap = {},
+    border = new Border({}),
+    rotation = {},
+    width = null,
+    height = null,
+  } = {}) {
+    assertType(backgroundColor, "string", "Style backgroundColor", true);
+    assertType(font, "object", "Style font");
+    assertType(alignment, "object", "Style alignment");
+    assertType(wrap, "object", "Style wrap");
+    assertType(rotation, "object", "Style rotation");
+    assertType(width, "number", "Style width", true);
+    assertType(height, "number", "Style height", true);
+    assertInstance(border, Border, "Style border", true);
+
+    if (wrap.strategy && !Object.values(WrapStrategy).includes(wrap.strategy)) {
+      throw new Error(`Invalid wrap strategy: ${wrap.strategy}`);
+    }
+
+    this.props = {
+      backgroundColor,
+      font: { ...Defaults.FONT, ...font },
+      alignment: { ...Defaults.ALIGNMENT, ...alignment },
+      wrap: { ...Defaults.WRAP, ...wrap },
+      border: border,
+      rotation: { ...Defaults.ROTATION, ...rotation },
+      width,
+      height,
+    };
+  }
+}
+
+/*
+========================================================================
+                            4. DATA TYPES
+========================================================================
+*/
 
 class Type {
   constructor() {
@@ -172,9 +250,6 @@ function validateDropdownObjectArray(values) {
   });
 }
 
-/**
- * Dropdown type with optional conditional formatting per value.
- */
 class Dropdown extends Type {
   constructor({ values, selected = null }) {
     super();
@@ -274,69 +349,19 @@ class NumberCell extends Type {
   }
 }
 
-const BORDER_THICKNESS_VALUES = Object.freeze(Object.values(BorderThickness));
+/*
+========================================================================
+                            5. COMPONENTS
+========================================================================
+*/
 
-function validateBorderSide(side, sideName) {
-  if (!side) return;
-  assertType(side, "object", `Border '${sideName}'`);
-  assertType(side.color, "string", `Border '${sideName}'.color`);
-  if (!BORDER_THICKNESS_VALUES.includes(side.thickness)) {
-    throw new Error(
-      `Border '${sideName}'.thickness must be a valid BorderThickness.`
-    );
+class Component {
+  constructor() {
+    // The base component does not hold any data.
   }
-}
 
-/**
- * Defines border styling for cell edges.
- */
-class Border {
-  constructor({ top = null, bottom = null, left = null, right = null }) {
-    validateBorderSide(top, "top");
-    validateBorderSide(bottom, "bottom");
-    validateBorderSide(left, "left");
-    validateBorderSide(right, "right");
-    this.props = { top, bottom, left, right };
-  }
-}
-
-/**
- * Encapsulates all visual styling for a cell.
- */
-class Style {
-  constructor({
-    backgroundColor = null,
-    font = {},
-    alignment = {},
-    wrap = {},
-    border = new Border({}),
-    rotation = {},
-    width = null,
-    height = null,
-  } = {}) {
-    assertType(backgroundColor, "string", "Style backgroundColor", true);
-    assertType(font, "object", "Style font");
-    assertType(alignment, "object", "Style alignment");
-    assertType(wrap, "object", "Style wrap");
-    assertType(rotation, "object", "Style rotation");
-    assertType(width, "number", "Style width", true);
-    assertType(height, "number", "Style height", true);
-    assertInstance(border, Border, "Style border", true);
-
-    if (wrap.strategy && !Object.values(WrapStrategy).includes(wrap.strategy)) {
-      throw new Error(`Invalid wrap strategy: ${wrap.strategy}`);
-    }
-
-    this.props = {
-      backgroundColor,
-      font: { ...Defaults.FONT, ...font },
-      alignment: { ...Defaults.ALIGNMENT, ...alignment },
-      wrap: { ...Defaults.WRAP, ...wrap },
-      border: border,
-      rotation: { ...Defaults.ROTATION, ...rotation },
-      width,
-      height,
-    };
+  render(renderer, position, inheritedStyle) {
+    throw new Error("Component must implement a render method.");
   }
 }
 
@@ -420,9 +445,6 @@ class VStack extends Component {
   }
 }
 
-/**
- * Represents a single spreadsheet cell with type, style, and span options.
- */
 class Cell extends Component {
   constructor({
     type = new Text(""),
@@ -463,13 +485,10 @@ class Cell extends Component {
 
 /*
 ========================================================================
-                  Renderer Class and Render Function
+                            6. RENDERER ENGINE
 ========================================================================
 */
 
-/**
- * Renders a component tree to a Google Sheets target.
- */
 class Renderer {
   constructor(targetSheet) {
     if (!targetSheet) {
@@ -517,7 +536,6 @@ class Renderer {
       },
     };
 
-    // Parent's width and height win
     if (inheritedStyle.props.width !== null) {
       mergedProps.width = inheritedStyle.props.width;
     }
@@ -541,7 +559,7 @@ class Renderer {
     const grids = this._buildGrids(bounds);
     this._applyStyles(fullRange, grids);
     this._applyDimensions(grids.widths, grids.heights);
-    this._applyRotations(bounds, grids.rotations);
+    this._applyRotations(fullRange, grids.rotations);
     this._applyBorders(bounds, grids.borders);
     this._applyConditionalFormats(grids.conditionalFormats);
     this._applyMerges(grids.merges);
@@ -724,30 +742,77 @@ class Renderer {
     }
   }
 
-  _applyRotations({ minRow, minCol, numRows, numCols }, rotations) {
-    for (let r = 0; r < numRows; r++) {
-      for (let c = 0; c < numCols; c++) {
-        if (rotations[r][c] !== 0) {
-          this.sheet
-            .getRange(minRow + r, minCol + c)
-            .setTextRotation(rotations[r][c]);
-        }
-      }
+  /**
+   * OPTIMIZED: Uses setTextRotations to apply all rotations in one API call.
+   */
+  _applyRotations(range, rotations) {
+    // Only apply if there's at least one non-zero rotation to save a call
+    const hasRotation = rotations.some((row) =>
+      row.some((angle) => angle !== 0)
+    );
+    if (hasRotation) {
+      range.setTextRotations(rotations);
     }
   }
 
+  /**
+   * OPTIMIZED: Batches border applications by finding horizontal runs of identical borders.
+   * Handles multi-colored borders by applying sides sequentially.
+   */
   _applyBorders({ minRow, minCol, numRows, numCols }, borders) {
     for (let r = 0; r < numRows; r++) {
-      for (let c = 0; c < numCols; c++) {
+      let c = 0;
+      while (c < numCols) {
         const borderInfo = borders[r][c];
-        if (!borderInfo) continue;
-        const range = this.sheet.getRange(minRow + r, minCol + c);
-        for (const side of Constants.BORDER_SIDES) {
-          const border = borderInfo[side.key];
-          if (border) {
-            range.setBorder(...side.args, border.color, border.thickness);
-          }
+        if (!borderInfo) {
+          c++;
+          continue;
         }
+
+        // Find length of identical run
+        let len = 1;
+        while (c + len < numCols && areBordersEqual(borderInfo, borders[r][c + len])) {
+          len++;
+        }
+
+        const range = this.sheet.getRange(minRow + r, minCol + c, 1, len);
+        
+        // Apply Top
+        if (borderInfo.top) {
+          range.setBorder(true, null, null, null, null, null, borderInfo.top.color, borderInfo.top.thickness);
+        }
+
+        // Apply Bottom
+        if (borderInfo.bottom) {
+          range.setBorder(null, null, true, null, null, null, borderInfo.bottom.color, borderInfo.bottom.thickness);
+        }
+
+        // Apply Left (Start)
+        // If it's a run, Left applies to the START.
+        if (borderInfo.left) {
+             range.setBorder(null, true, null, null, null, null, borderInfo.left.color, borderInfo.left.thickness);
+        }
+
+        // Apply Right (End)
+        // Right applies to the END.
+        if (borderInfo.right) {
+             range.setBorder(null, null, null, true, null, null, borderInfo.right.color, borderInfo.right.thickness);
+        }
+
+        // Apply Vertical (Internal)
+        // Only if we have a run > 1
+        if (len > 1) {
+            // Logic: If left and right are consistent, we use them for vertical.
+            // If Left=Red and Right=Red, Vertical=Red.
+            const left = borderInfo.left;
+            const right = borderInfo.right;
+            
+            if (left && right && left.color === right.color && left.thickness === right.thickness) {
+                 range.setBorder(null, null, null, null, true, null, left.color, left.thickness);
+            }
+        }
+
+        c += len;
       }
     }
   }
