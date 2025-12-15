@@ -9,23 +9,6 @@
  * =======================================================================
  */
 
-const {
-  VStack,
-  HStack,
-  Cell,
-  Text,
-  NumberCell,
-  Dropdown,
-  Checkbox,
-  DatePicker,
-  Style,
-  Border,
-  BorderThickness,
-  WrapStrategy,
-  NumberFormats,
-  render,
-} = ReaSheets;
-
 /**
  * Example 1: Demonstrates cell spanning and how the occupancyMap prevents collisions.
  *

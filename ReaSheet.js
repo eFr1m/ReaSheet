@@ -3,54 +3,68 @@
  * ReaSheets (Single-File Distribution)
  *
  * A declarative, component-based library for Google Apps Script.
+ *
+ * Public API is exposed globally for ease of use in GAS.
+ * Internal implementation details are hidden in a closure.
  * =======================================================================
  */
 
-// Define the namespace globally.
-// In GAS, 'var' puts it in the global scope.
-var ReaSheets = (function () {
-  /*
-  ========================================================================
-                              1. PUBLIC CONSTANTS & ENUMS
-  ========================================================================
-  */
+/*
+========================================================================
+                            1. PUBLIC CONSTANTS & ENUMS
+========================================================================
+*/
 
-  const WrapStrategy = Object.freeze({
-    WRAP: SpreadsheetApp.WrapStrategy.WRAP,
-    OVERFLOW: SpreadsheetApp.WrapStrategy.OVERFLOW,
-    CLIP: SpreadsheetApp.WrapStrategy.CLIP,
-  });
+var WrapStrategy = Object.freeze({
+  WRAP: SpreadsheetApp.WrapStrategy.WRAP,
+  OVERFLOW: SpreadsheetApp.WrapStrategy.OVERFLOW,
+  CLIP: SpreadsheetApp.WrapStrategy.CLIP,
+});
 
-  const BorderThickness = Object.freeze({
-    DOTTED: SpreadsheetApp.BorderStyle.DOTTED,
-    DASHED: SpreadsheetApp.BorderStyle.DASHED,
-    SOLID: SpreadsheetApp.BorderStyle.SOLID,
-    SOLID_MEDIUM: SpreadsheetApp.BorderStyle.SOLID_MEDIUM,
-    SOLID_THICK: SpreadsheetApp.BorderStyle.SOLID_THICK,
-    DOUBLE: SpreadsheetApp.BorderStyle.DOUBLE,
-  });
+var BorderThickness = Object.freeze({
+  DOTTED: SpreadsheetApp.BorderStyle.DOTTED,
+  DASHED: SpreadsheetApp.BorderStyle.DASHED,
+  SOLID: SpreadsheetApp.BorderStyle.SOLID,
+  SOLID_MEDIUM: SpreadsheetApp.BorderStyle.SOLID_MEDIUM,
+  SOLID_THICK: SpreadsheetApp.BorderStyle.SOLID_THICK,
+  DOUBLE: SpreadsheetApp.BorderStyle.DOUBLE,
+});
 
-  const NumberFormats = Object.freeze({
-    PERCENTAGE: "0.00%",
-    CURRENCY: "$#,##0.00",
-  });
+var NumberFormats = Object.freeze({
+  PERCENTAGE: "0.00%",
+  CURRENCY: "$#,##0.00",
+});
 
-  const FontWeight = Object.freeze({
-    BOLD: "bold",
-    NORMAL: "normal",
-  });
+var FontWeight = Object.freeze({
+  BOLD: "bold",
+  NORMAL: "normal",
+});
 
-  const FontStyle = Object.freeze({
-    ITALIC: "italic",
-    NORMAL: "normal",
-  });
+var FontStyle = Object.freeze({
+  ITALIC: "italic",
+  NORMAL: "normal",
+});
 
-  const FontLine = Object.freeze({
-    UNDERLINE: "underline",
-    STRIKETHROUGH: "line-through",
-    NONE: null,
-  });
+var FontLine = Object.freeze({
+  UNDERLINE: "underline",
+  STRIKETHROUGH: "line-through",
+  NONE: null,
+});
 
+// Forward declarations for public classes to be populated by the closure
+var VStack,
+  HStack,
+  Cell,
+  Text,
+  Checkbox,
+  Dropdown,
+  DatePicker,
+  NumberCell,
+  Style,
+  Border,
+  render;
+
+(function () {
   /*
   ========================================================================
                               2. INTERNAL CONSTANTS & UTILITIES
@@ -156,7 +170,8 @@ var ReaSheets = (function () {
     }
   }
 
-  class Border {
+  // Assign to global variable
+  Border = class Border {
     constructor({ top = null, bottom = null, left = null, right = null }) {
       validateBorderSide(top, "top");
       validateBorderSide(bottom, "bottom");
@@ -164,9 +179,10 @@ var ReaSheets = (function () {
       validateBorderSide(right, "right");
       this.props = { top, bottom, left, right };
     }
-  }
+  };
 
-  class Style {
+  // Assign to global variable
+  Style = class Style {
     constructor({
       backgroundColor = null,
       font = {},
@@ -204,7 +220,7 @@ var ReaSheets = (function () {
         height,
       };
     }
-  }
+  };
 
   /*
   ========================================================================
@@ -222,15 +238,17 @@ var ReaSheets = (function () {
     }
   }
 
-  class Text extends Type {
+  // Assign to global variable
+  Text = class Text extends Type {
     constructor(value = "") {
       super();
       assertType(value, "string", "Text value");
       this.props = { value };
     }
-  }
+  };
 
-  class Checkbox extends Type {
+  // Assign to global variable
+  Checkbox = class Checkbox extends Type {
     constructor(isChecked = false) {
       super();
       assertType(isChecked, "boolean", "Checkbox value");
@@ -244,7 +262,7 @@ var ReaSheets = (function () {
           .build(),
       };
     }
-  }
+  };
 
   function validateDropdownObjectArray(values) {
     values.forEach((v, i) => {
@@ -257,7 +275,8 @@ var ReaSheets = (function () {
     });
   }
 
-  class Dropdown extends Type {
+  // Assign to global variable
+  Dropdown = class Dropdown extends Type {
     constructor({ values, selected = null }) {
       super();
       assertNonEmptyArray(values, "Dropdown values");
@@ -313,9 +332,10 @@ var ReaSheets = (function () {
       }
       return directives;
     }
-  }
+  };
 
-  class DatePicker extends Type {
+  // Assign to global variable
+  DatePicker = class DatePicker extends Type {
     constructor({ format = "", value = null } = {}) {
       super();
       assertType(format, "string", "DatePicker format");
@@ -337,9 +357,10 @@ var ReaSheets = (function () {
       }
       return directives;
     }
-  }
+  };
 
-  class NumberCell extends Type {
+  // Assign to global variable
+  NumberCell = class NumberCell extends Type {
     constructor(value, format = "0") {
       super();
       assertType(value, "number", "NumberCell value");
@@ -354,7 +375,7 @@ var ReaSheets = (function () {
       }
       return directives;
     }
-  }
+  };
 
   /*
   ========================================================================
@@ -369,10 +390,6 @@ var ReaSheets = (function () {
       this.col = startPosition.col;
     }
 
-    /**
-     * Advances the cursor to the next unoccupied position in the specified direction.
-     * Updates this.row/this.col to the safe starting point.
-     */
     advanceToNextUnoccupied(direction) {
       while (this.renderer.occupancyMap.has(`${this.row}:${this.col}`)) {
         if (direction === "horizontal") {
@@ -384,10 +401,6 @@ var ReaSheets = (function () {
       return { row: this.row, col: this.col };
     }
 
-    /**
-     * Updates the cursor position after placing a child, ensuring it moves
-     * past the child's bounding box for the next iteration.
-     */
     updateAfterChild(childMaxRow, childMaxCol, direction) {
       if (direction === "horizontal") {
         this.col = childMaxCol + 1;
@@ -407,7 +420,8 @@ var ReaSheets = (function () {
     }
   }
 
-  class HStack extends Component {
+  // Assign to global variable
+  HStack = class HStack extends Component {
     constructor({ children, style = null }) {
       super();
       assertType(children, "array", "HStack children");
@@ -431,7 +445,6 @@ var ReaSheets = (function () {
         );
         resolved.push(...childCells);
 
-        // Calculate the max column this child occupied (including spans)
         let childMaxCol = 0;
         childCells.forEach((c) => {
           childMaxCol = Math.max(
@@ -444,9 +457,10 @@ var ReaSheets = (function () {
       }
       return resolved;
     }
-  }
+  };
 
-  class VStack extends Component {
+  // Assign to global variable
+  VStack = class VStack extends Component {
     constructor({ children, style = null }) {
       super();
       assertType(children, "array", "VStack children");
@@ -470,7 +484,6 @@ var ReaSheets = (function () {
         );
         resolved.push(...childCells);
 
-        // Calculate the max row this child occupied (including spans)
         let childMaxRow = 0;
         childCells.forEach((c) => {
           childMaxRow = Math.max(
@@ -483,9 +496,10 @@ var ReaSheets = (function () {
       }
       return resolved;
     }
-  }
+  };
 
-  class Cell extends Component {
+  // Assign to global variable
+  Cell = class Cell extends Component {
     constructor({
       type = new Text(""),
       style,
@@ -521,7 +535,7 @@ var ReaSheets = (function () {
       }
       return [resolvedCell];
     }
-  }
+  };
 
   /*
   ========================================================================
@@ -779,11 +793,7 @@ var ReaSheets = (function () {
       }
     }
 
-    /**
-     * OPTIMIZED: Uses setTextRotations to apply all rotations in one API call.
-     */
     _applyRotations(range, rotations) {
-      // Only apply if there's at least one non-zero rotation to save a call
       const hasRotation = rotations.some((row) =>
         row.some((angle) => angle !== 0)
       );
@@ -792,10 +802,6 @@ var ReaSheets = (function () {
       }
     }
 
-    /**
-     * OPTIMIZED: Batches border applications by finding horizontal runs of identical borders.
-     * Handles multi-colored borders by applying sides sequentially.
-     */
     _applyBorders({ minRow, minCol, numRows, numCols }, borders) {
       for (let r = 0; r < numRows; r++) {
         let c = 0;
@@ -806,7 +812,6 @@ var ReaSheets = (function () {
             continue;
           }
 
-          // Find length of identical run
           let len = 1;
           while (
             c + len < numCols &&
@@ -817,7 +822,6 @@ var ReaSheets = (function () {
 
           const range = this.sheet.getRange(minRow + r, minCol + c, 1, len);
 
-          // Apply Top
           if (borderInfo.top) {
             range.setBorder(
               true,
@@ -830,8 +834,6 @@ var ReaSheets = (function () {
               borderInfo.top.thickness
             );
           }
-
-          // Apply Bottom
           if (borderInfo.bottom) {
             range.setBorder(
               null,
@@ -844,9 +846,6 @@ var ReaSheets = (function () {
               borderInfo.bottom.thickness
             );
           }
-
-          // Apply Left (Start)
-          // If it's a run, Left applies to the START.
           if (borderInfo.left) {
             range.setBorder(
               null,
@@ -859,9 +858,6 @@ var ReaSheets = (function () {
               borderInfo.left.thickness
             );
           }
-
-          // Apply Right (End)
-          // Right applies to the END.
           if (borderInfo.right) {
             range.setBorder(
               null,
@@ -874,15 +870,9 @@ var ReaSheets = (function () {
               borderInfo.right.thickness
             );
           }
-
-          // Apply Vertical (Internal)
-          // Only if we have a run > 1
           if (len > 1) {
-            // Logic: If left and right are consistent, we use them for vertical.
-            // If Left=Red and Right=Red, Vertical=Red.
             const left = borderInfo.left;
             const right = borderInfo.right;
-
             if (
               left &&
               right &&
@@ -901,7 +891,6 @@ var ReaSheets = (function () {
               );
             }
           }
-
           c += len;
         }
       }
@@ -918,36 +907,8 @@ var ReaSheets = (function () {
     }
   }
 
-  function render(rootComponent, targetSheet) {
+  // Assign to global variable
+  render = function (rootComponent, targetSheet) {
     new Renderer(targetSheet).render(rootComponent);
-  }
-
-  return {
-    // Components
-    VStack,
-    HStack,
-    Cell,
-
-    // Types
-    Text,
-    Checkbox,
-    Dropdown,
-    DatePicker,
-    NumberCell,
-
-    // Styling
-    Style,
-    Border,
-
-    // Enums
-    WrapStrategy,
-    BorderThickness,
-    NumberFormats,
-    FontWeight,
-    FontStyle,
-    FontLine,
-
-    // Core
-    render,
   };
 })();

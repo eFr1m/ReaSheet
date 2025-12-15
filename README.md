@@ -25,12 +25,9 @@ Once the layout is calculated, the `Renderer` translates these resolved cells in
 
 ## Basic Usage
 
-The library is exposed via the global `ReaSheets` namespace.
+The library exposes its components globally, so you can just use them directly.
 
 ```javascript
-// Destructure the parts you need
-const { VStack, HStack, Cell, Text, Style, render } = ReaSheets;
-
 function createSheet() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   const sheet = ss.getSheetByName("Demo") || ss.insertSheet("Demo");
@@ -73,23 +70,23 @@ function createSheet() {
 ## Component API
 
 ### Layout Components
-*   **`ReaSheets.VStack({ children, style })`**: Stacks components vertically. It fills rows top-to-bottom.
-*   **`ReaSheets.HStack({ children, style })`**: Stacks components horizontally. It fills columns left-to-right.
-*   **`ReaSheets.Cell({ type, style, rowSpan, colSpan })`**: The atomic unit. Handles spanning and content.
+*   **`VStack({ children, style })`**: Stacks components vertically. It fills rows top-to-bottom.
+*   **`HStack({ children, style })`**: Stacks components horizontally. It fills columns left-to-right.
+*   **`Cell({ type, style, rowSpan, colSpan })`**: The atomic unit. Handles spanning and content.
 
 ### Data Types
 These are passed to the `type` prop of a `Cell`.
-*   **`ReaSheets.Text(value)`**: Simple text string.
-*   **`ReaSheets.NumberCell(value, format)`**: Numeric value with format pattern (e.g., `ReaSheets.NumberFormats.CURRENCY`).
-*   **`ReaSheets.Checkbox(checked)`**: Boolean checkbox validation.
-*   **`ReaSheets.Dropdown({ values, selected })`**: Data validation dropdown. `values` can be simple strings or objects with conditional formatting styles.
-*   **`ReaSheets.DatePicker({ format })`**: Date validation and formatting.
+*   **`Text(value)`**: Simple text string.
+*   **`NumberCell(value, format)`**: Numeric value with format pattern (e.g., `NumberFormats.CURRENCY`).
+*   **`Checkbox(checked)`**: Boolean checkbox validation.
+*   **`Dropdown({ values, selected })`**: Data validation dropdown. `values` can be simple strings or objects with conditional formatting styles.
+*   **`DatePicker({ format })`**: Date validation and formatting.
 
 ### Styling
-*   **`ReaSheets.Style({ ... })`**: The styling object. Properties:
+*   **`Style({ ... })`**: The styling object. Properties:
     *   `backgroundColor`: Hex code.
     *   `font`: `{ color, size, bold, italic, ... }`
     *   `alignment`: `{ horizontal, vertical }`
-    *   `border`: `new ReaSheets.Border({ top: { color, thickness }, ... })`
-    *   `wrap`: `ReaSheets.WrapStrategy.WRAP` | `OVERFLOW` | `CLIP`
+    *   `border`: `new Border({ top: { color, thickness }, ... })`
+    *   `wrap`: `WrapStrategy.WRAP` | `OVERFLOW` | `CLIP`
 *   **Inheritance:** Styles cascade down. A `Style` on a `VStack` applies to all its children unless overridden.
