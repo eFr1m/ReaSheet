@@ -8,7 +8,7 @@
 
 /*
 ========================================================================
-                            1. CONSTANTS & ENUMS
+                            1. PUBLIC CONSTANTS & ENUMS
 ========================================================================
 */
 
@@ -32,25 +32,30 @@ const NumberFormats = Object.freeze({
   CURRENCY: "$#,##0.00",
 });
 
-const Constants = {
-  FontWeight: Object.freeze({
-    BOLD: "bold",
-    NORMAL: "normal",
-  }),
+const FontWeight = Object.freeze({
+  BOLD: "bold",
+  NORMAL: "normal",
+});
 
-  FontStyle: Object.freeze({
-    ITALIC: "italic",
-    NORMAL: "normal",
-  }),
+const FontStyle = Object.freeze({
+  ITALIC: "italic",
+  NORMAL: "normal",
+});
 
-  FontLine: Object.freeze({
-    UNDERLINE: "underline",
-    STRIKETHROUGH: "line-through",
-    NONE: null,
-  }),
+const FontLine = Object.freeze({
+  UNDERLINE: "underline",
+  STRIKETHROUGH: "line-through",
+  NONE: null,
+});
 
+/*
+========================================================================
+                            2. INTERNAL CONSTANTS & UTILITIES
+========================================================================
+*/
+
+const InternalConstants = {
   NUMBER_FORMAT: "General",
-
   BORDER_SIDES: Object.freeze([
     { key: "top", args: [true, null, null, null, null, null] },
     { key: "left", args: [null, true, null, null, null, null] },
@@ -83,12 +88,6 @@ const Defaults = {
     angle: 0,
   }),
 };
-
-/*
-========================================================================
-                            2. UTILITIES
-========================================================================
-*/
 
 function assertType(value, type, name, allowNull = false) {
   if (allowNull && value === null) return;
@@ -355,6 +354,41 @@ class NumberCell extends Type {
 ========================================================================
 */
 
+class LayoutCursor {
+  constructor(renderer, startPosition) {
+    this.renderer = renderer;
+    this.row = startPosition.row;
+    this.col = startPosition.col;
+  }
+
+  /**
+   * Advances the cursor to the next unoccupied position in the specified direction.
+   * Updates this.row/this.col to the safe starting point.
+   */
+  advanceToNextUnoccupied(direction) {
+    while (this.renderer.occupancyMap.has(`${this.row}:${this.col}`)) {
+      if (direction === 'horizontal') {
+        this.col++;
+      } else {
+        this.row++;
+      }
+    }
+    return { row: this.row, col: this.col };
+  }
+
+  /**
+   * Updates the cursor position after placing a child, ensuring it moves
+   * past the child's bounding box for the next iteration.
+   */
+  updateAfterChild(childMaxRow, childMaxCol, direction) {
+    if (direction === 'horizontal') {
+      this.col = childMaxCol + 1;
+    } else {
+      this.row = childMaxRow + 1;
+    }
+  }
+}
+
 class Component {
   constructor() {
     // The base component does not hold any data.
@@ -375,22 +409,17 @@ class HStack extends Component {
 
   render(renderer, position, inheritedStyle) {
     let resolved = [];
-    let cursor = { ...position };
+    const cursor = new LayoutCursor(renderer, position);
     const containerStyle = this.props.style
       ? renderer._mergeStyles(inheritedStyle, this.props.style)
       : inheritedStyle;
 
     for (const child of this.props.children) {
-      let childStartPos = { ...cursor };
-      while (
-        renderer.occupancyMap.has(`${childStartPos.row}:${childStartPos.col}`)
-      ) {
-        childStartPos.col++;
-      }
-
+      const childStartPos = cursor.advanceToNextUnoccupied('horizontal');
       const childCells = child.render(renderer, childStartPos, containerStyle);
       resolved.push(...childCells);
 
+      // Calculate the max column this child occupied (including spans)
       let childMaxCol = 0;
       childCells.forEach((c) => {
         childMaxCol = Math.max(
@@ -399,7 +428,7 @@ class HStack extends Component {
         );
       });
 
-      cursor.col = childMaxCol + 1;
+      cursor.updateAfterChild(0, childMaxCol, 'horizontal');
     }
     return resolved;
   }
@@ -415,22 +444,17 @@ class VStack extends Component {
 
   render(renderer, position, inheritedStyle) {
     let resolved = [];
-    let cursor = { ...position };
+    const cursor = new LayoutCursor(renderer, position);
     const containerStyle = this.props.style
       ? renderer._mergeStyles(inheritedStyle, this.props.style)
       : inheritedStyle;
 
     for (const child of this.props.children) {
-      let childStartPos = { ...cursor };
-      while (
-        renderer.occupancyMap.has(`${childStartPos.row}:${childStartPos.col}`)
-      ) {
-        childStartPos.row++;
-      }
-
+      const childStartPos = cursor.advanceToNextUnoccupied('vertical');
       const childCells = child.render(renderer, childStartPos, containerStyle);
       resolved.push(...childCells);
 
+      // Calculate the max row this child occupied (including spans)
       let childMaxRow = 0;
       childCells.forEach((c) => {
         childMaxRow = Math.max(
@@ -439,7 +463,7 @@ class VStack extends Component {
         );
       });
 
-      cursor.row = childMaxRow + 1;
+      cursor.updateAfterChild(childMaxRow, 0, 'vertical');
     }
     return resolved;
   }
@@ -604,7 +628,7 @@ class Renderer {
       wrapStrategies: createGrid(WrapStrategy.OVERFLOW),
       notes: createGrid(),
       validations: createGrid(),
-      numberFormats: createGrid(Constants.NUMBER_FORMAT),
+      numberFormats: createGrid(InternalConstants.NUMBER_FORMAT),
       rotations: createGrid(0),
       borders: createGrid(false),
       widths: {},
@@ -670,16 +694,16 @@ class Renderer {
       fontColor: font.color,
       fontSize: font.size,
       fontWeight: font.bold
-        ? Constants.FontWeight.BOLD
-        : Constants.FontWeight.NORMAL,
+        ? FontWeight.BOLD
+        : FontWeight.NORMAL,
       fontStyle: font.italic
-        ? Constants.FontStyle.ITALIC
-        : Constants.FontStyle.NORMAL,
+        ? FontStyle.ITALIC
+        : FontStyle.NORMAL,
       fontLine: font.underline
-        ? Constants.FontLine.UNDERLINE
+        ? FontLine.UNDERLINE
         : font.strikethrough
-        ? Constants.FontLine.STRIKETHROUGH
-        : Constants.FontLine.NONE,
+        ? FontLine.STRIKETHROUGH
+        : FontLine.NONE,
       hAlign: alignment.horizontal,
       vAlign: alignment.vertical,
       wrap: wrap.strategy,
