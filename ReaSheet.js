@@ -501,7 +501,7 @@ function _buildGrids(cells, bounds) {
         const c_idx = col - minCol + cOff;
         const isTopLeft = rOff === 0 && cOff === 0;
 
-        grids.values[r][c_idx] = isTopLeft ? (type.serialValue ?? type.value) : "";
+        grids.values[r][c_idx] = isTopLeft ? type.value : "";
         grids.notes[r][c_idx] = isTopLeft ? note : "";
         grids.backgrounds[r][c_idx] = style.backgroundColor;
         grids.fontColors[r][c_idx] = style.font.color;
