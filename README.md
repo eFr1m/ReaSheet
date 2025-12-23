@@ -77,7 +77,14 @@ function createSheet() {
 ### Data Types
 These are passed to the `type` prop of a `Cell`.
 *   **`Text(value)`**: Simple text string.
-*   **`NumberCell(value, format)`**: Numeric value with format pattern (e.g., `NumberFormats.CURRENCY`).
+*   **`NumberCell(value, format)`**: Numeric value with format pattern (e.g., `NumberFormats.CURRENCY`, `NumberFormats.INTEGER`, `NumberFormats.DECIMAL`).
+*   **`NumberFormats`**: Predefined number format strings.
+    *   `PERCENTAGE`: `"0.00%"`
+    *   `CURRENCY`: `"$#,##0.00"`
+    *   `INTEGER`: `"0"`
+    *   `DECIMAL`: `"0.00"`
+    *   `DATE`: `"MM/dd/yyyy"`
+
 *   **`Checkbox(checked)`**: Boolean checkbox validation.
 *   **`Dropdown({ values, selected })`**: Data validation dropdown. `values` can be simple strings or objects with conditional formatting styles.
 *   **`DatePicker({ format })`**: Date validation and formatting.
