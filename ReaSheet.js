@@ -209,7 +209,7 @@ class Dropdown {
             .setBackground(item.style.backgroundColor)
             .setFontColor(item.style.font?.color)
             .setRanges([range])
-            .build()
+            .build(),
         );
     }
     return directives;
@@ -304,7 +304,7 @@ class HStack {
       const childCells = child.render(
         ctx,
         { row: pos.row, col },
-        containerStyle
+        containerStyle,
       );
       resolved.push(...childCells);
 
@@ -338,7 +338,7 @@ class VStack {
       const childCells = child.render(
         ctx,
         { row, col: pos.col },
-        containerStyle
+        containerStyle,
       );
       resolved.push(...childCells);
 
@@ -353,85 +353,119 @@ class VStack {
     return resolved;
   }
 }
-
 // ============================================================================
-// RENDERER
+// RENDERER (Sheets API v4 - Strict Mode)
 // ============================================================================
 
 function render(sheet, root) {
+  const isSheet = (value) =>
+    value &&
+    typeof value.getSheetId === "function" &&
+    typeof value.getParent === "function";
+
+  const isRoot = (value) => value && typeof value.render === "function";
+
+  if (!isSheet(sheet) || !isRoot(root)) {
+    throw new TypeError("render expects (sheet, root)");
+  }
+
+  // 1. Calculate Layout
   const ctx = { occupied: new Set() };
-  const cells = root.render(ctx, { row: 1, col: 1 }, new Style());
+  // API uses 0-based indexing.
+  const cells = root.render(ctx, { row: 0, col: 0 }, new Style());
 
   if (cells.length === 0) return;
 
   const bounds = _calculateBounds(cells);
-  const range = sheet.getRange(
-    bounds.minRow,
-    bounds.minCol,
-    bounds.numRows,
-    bounds.numCols
-  );
-  range.clear();
+  const sheetId = sheet.getSheetId();
+  const spreadsheetId = sheet.getParent().getId();
 
-  const grids = _buildGrids(cells, bounds);
+  // 2. Flush any pending SpreadsheetApp operations (e.g. sheet.clear())
+  // to prevent them from executing after our batchUpdate and wiping data.
+  SpreadsheetApp.flush();
 
-  // Bulk apply styles
-  range
-    .setValues(grids.values)
-    .setNotes(grids.notes)
-    .setBackgrounds(grids.backgrounds)
-    .setFontColors(grids.fontColors)
-    .setFontSizes(grids.fontSizes)
-    .setFontWeights(grids.fontWeights)
-    .setFontStyles(grids.fontStyles)
-    .setFontLines(grids.fontLines)
-    .setHorizontalAlignments(grids.hAligns)
-    .setVerticalAlignments(grids.vAligns)
-    .setWrapStrategies(grids.wraps)
-    .setNumberFormats(grids.numberFormats)
-    .setDataValidations(grids.validations);
+  // 3. Build API Payloads
+  const requests = [];
 
-  // Rotations (only if needed)
-  if (grids.hasRotation) {
-    range.setTextRotations(grids.rotations);
+  // A. Unmerge any existing merges in the target range
+  requests.push({
+    unmergeCells: {
+      range: {
+        sheetId: sheetId,
+        startRowIndex: bounds.minRow,
+        endRowIndex: bounds.minRow + bounds.numRows,
+        startColumnIndex: bounds.minCol,
+        endColumnIndex: bounds.minCol + bounds.numCols,
+      },
+    },
+  });
+
+  // B. Clear the range to remove artifacts
+  requests.push({
+    updateCells: {
+      range: {
+        sheetId: sheetId,
+        startRowIndex: bounds.minRow,
+        endRowIndex: bounds.minRow + bounds.numRows,
+        startColumnIndex: bounds.minCol,
+        endColumnIndex: bounds.minCol + bounds.numCols,
+      },
+      fields: "userEnteredValue,userEnteredFormat,note,dataValidation",
+    },
+  });
+
+  // C. Generate Cell Data
+  const { rows, conditionalRules } = _buildApiData(sheet, cells, bounds);
+
+  // D. Update Content & Formatting
+  requests.push({
+    updateCells: {
+      start: {
+        sheetId: sheetId,
+        rowIndex: bounds.minRow,
+        columnIndex: bounds.minCol,
+      },
+      rows: rows,
+      // STRICT field mask ensures we apply exactly what we generated
+      fields: "userEnteredValue,userEnteredFormat,note,dataValidation",
+    },
+  });
+
+  // E. Merges
+  const merges = _buildApiMerges(cells, bounds, sheetId);
+  if (merges.length) requests.push(...merges);
+
+  // F. Dimensions (Widths/Heights)
+  const dims = _buildApiDimensions(cells, bounds, sheetId);
+  if (dims.length) requests.push(...dims);
+
+  // 4. Send Batch Request
+  if (requests.length > 0) {
+    Sheets.Spreadsheets.batchUpdate({ requests }, spreadsheetId);
   }
 
-  // Dimensions
-  for (const [col, width] of Object.entries(grids.widths)) {
-    sheet.setColumnWidth(parseInt(col), width);
-  }
-  for (const [row, height] of Object.entries(grids.heights)) {
-    sheet.setRowHeight(parseInt(row), height);
-  }
-
-  // Borders (RLE optimized)
-  _applyBorders(sheet, bounds, grids.borders);
-
-  // Merges
-  for (const m of grids.merges) {
-    sheet.getRange(m.row, m.col, m.rowSpan, m.colSpan).merge();
-  }
-
-  // Conditional formats (merge with existing)
-  if (grids.conditionalRules.length > 0) {
+  // 5. Apply Conditional Rules (via AppScript)
+  if (conditionalRules.length > 0) {
     const existing = sheet.getConditionalFormatRules();
-    sheet.setConditionalFormatRules(existing.concat(grids.conditionalRules));
+    sheet.setConditionalFormatRules(existing.concat(conditionalRules));
   }
 }
+
+// ----------------------------------------------------------------------------
+// DATA BUILDERS
+// ----------------------------------------------------------------------------
 
 function _calculateBounds(cells) {
   let minRow = Infinity,
     maxRow = 0,
     minCol = Infinity,
     maxCol = 0;
-
   for (const c of cells) {
     minRow = Math.min(minRow, c.row);
     maxRow = Math.max(maxRow, c.row + (c.cell.rowSpan || 1) - 1);
     minCol = Math.min(minCol, c.col);
     maxCol = Math.max(maxCol, c.col + (c.cell.colSpan || 1) - 1);
   }
-
   return {
     minRow,
     maxRow,
@@ -442,182 +476,293 @@ function _calculateBounds(cells) {
   };
 }
 
-function _buildGrids(cells, bounds) {
+function _buildApiData(sheet, cells, bounds) {
   const { minRow, minCol, numRows, numCols } = bounds;
-  const grid = (fill) =>
-    Array.from({ length: numRows }, () => Array(numCols).fill(fill));
 
-  const grids = {
-    values: grid(""),
-    notes: grid(""),
-    backgrounds: grid(null),
-    fontColors: grid(null),
-    fontSizes: grid(null),
-    fontWeights: grid(null),
-    fontStyles: grid(null),
-    fontLines: grid(null),
-    hAligns: grid(null),
-    vAligns: grid(null),
-    wraps: grid(WrapStrategy.OVERFLOW),
-    numberFormats: grid("General"),
-    validations: grid(null),
-    rotations: grid(0),
-    borders: grid(null),
-    widths: {},
-    heights: {},
-    merges: [],
-    conditionalRules: [],
-    hasRotation: false,
-  };
+  // Initialize a dense grid of empty objects
+  const grid = Array.from({ length: numRows }, () =>
+    Array.from({ length: numCols }, () => ({})),
+  );
+
+  const conditionalRules = [];
 
   for (const c of cells) {
-    const { row, col, cell, style } = c;
-    const { type, note, rowSpan, colSpan } = cell;
-    const directives =
-      type.getDirectives?.(
-        SpreadsheetApp.getActiveSpreadsheet()
-          .getActiveSheet()
-          .getRange(row, col, rowSpan, colSpan)
-      ) || {};
+    const r = c.row - minRow;
+    const col = c.col - minCol;
 
-    // Track dimensions
-    if (style.width !== null) grids.widths[col] = style.width;
-    if (style.height !== null) grids.heights[row] = style.height;
+    // Directives (Validation, NumberFormat)
+    let directives = {};
+    if (c.cell.type.getDirectives) {
+      // Convert 0-based to 1-based for getRange if needed by directives
+      const rng = sheet.getRange(
+        c.row + 1,
+        c.col + 1,
+        c.cell.rowSpan || 1,
+        c.cell.colSpan || 1,
+      );
+      directives = c.cell.type.getDirectives(rng);
+    }
 
-    // Conditional rules
     if (directives.conditionalFormatRules) {
-      grids.conditionalRules.push(...directives.conditionalFormatRules);
+      conditionalRules.push(...directives.conditionalFormatRules);
     }
 
-    // Merges
-    if (rowSpan > 1 || colSpan > 1) {
-      grids.merges.push({ row, col, rowSpan, colSpan });
-    }
-
-    // Fill grid cells
-    for (let rOff = 0; rOff < rowSpan; rOff++) {
-      for (let cOff = 0; cOff < colSpan; cOff++) {
-        const r = row - minRow + rOff;
-        const c_idx = col - minCol + cOff;
-        const isTopLeft = rOff === 0 && cOff === 0;
-
-        grids.values[r][c_idx] = isTopLeft ? type.value : "";
-        grids.notes[r][c_idx] = isTopLeft ? note : "";
-        grids.backgrounds[r][c_idx] = style.backgroundColor;
-        grids.fontColors[r][c_idx] = style.font.color;
-        grids.fontSizes[r][c_idx] = style.font.size;
-        grids.fontWeights[r][c_idx] = style.font.bold ? "bold" : "normal";
-        grids.fontStyles[r][c_idx] = style.font.italic ? "italic" : "normal";
-        grids.fontLines[r][c_idx] = style.font.underline
-          ? "underline"
-          : style.font.strikethrough
-          ? "line-through"
-          : null;
-        grids.hAligns[r][c_idx] = style.alignment.horizontal;
-        grids.vAligns[r][c_idx] = style.alignment.vertical;
-        grids.wraps[r][c_idx] = style.wrap;
-        grids.rotations[r][c_idx] = style.rotation;
-        grids.validations[r][c_idx] = directives.validation || null;
-
-        if (directives.numberFormat) {
-          grids.numberFormats[r][c_idx] = directives.numberFormat;
-        }
-
-        if (style.rotation !== 0) grids.hasRotation = true;
-
-        // Border: only apply outer edges
-        const border = style.border;
-        grids.borders[r][c_idx] = {
-          top: rOff === 0 ? border.top : null,
-          bottom: rOff === rowSpan - 1 ? border.bottom : null,
-          left: cOff === 0 ? border.left : null,
-          right: cOff === colSpan - 1 ? border.right : null,
-        };
-      }
+    // Only populate the top-left cell of the merge
+    // (We check if the slot is empty to avoid overwriting if logic is flawed,
+    // though the render tree should guarantee uniqueness)
+    if (Object.keys(grid[r][col]).length === 0) {
+      grid[r][col] = _createCellData(c, directives);
     }
   }
 
-  return grids;
+  // Convert grid to API RowData structure
+  const rows = grid.map((rowValues) => ({ values: rowValues }));
+
+  return { rows, conditionalRules };
 }
 
-function _applyBorders(sheet, bounds, borders) {
-  const { minRow, minCol, numRows, numCols } = bounds;
+function _createCellData({ cell, style }, directives) {
+  const cellData = {};
 
-  for (let r = 0; r < numRows; r++) {
-    let c = 0;
-    while (c < numCols) {
-      const b = borders[r][c];
-      if (!b || (!b.top && !b.bottom && !b.left && !b.right)) {
-        c++;
-        continue;
-      }
+  // 1. Value
+  const v = cell.type.value;
+  // Explicitly check against null/undefined. Empty string "" is a valid value.
+  if (v !== null && v !== undefined) {
+    if (typeof v === "number") cellData.userEnteredValue = { numberValue: v };
+    else if (typeof v === "boolean")
+      cellData.userEnteredValue = { boolValue: v };
+    else if (v instanceof Date)
+      cellData.userEnteredValue = { numberValue: _dateToSerial(v) };
+    else cellData.userEnteredValue = { stringValue: String(v) };
+  }
 
-      // RLE: find consecutive identical borders
-      let len = 1;
-      while (c + len < numCols && _bordersMatch(b, borders[r][c + len])) {
-        len++;
-      }
+  // 2. Format
+  // We MUST attach userEnteredFormat even if empty, otherwise the API might not clear old formats correctly
+  const format = _mapStyleToFormat(style);
 
-      const range = sheet.getRange(minRow + r, minCol + c, 1, len);
+  // Apply Number Format from Directives
+  if (directives.numberFormat) {
+    const isDate =
+      directives.numberFormat.includes("d") ||
+      directives.numberFormat.includes("y");
+    format.numberFormat = {
+      type: isDate ? "DATE" : "NUMBER",
+      pattern: directives.numberFormat,
+    };
+  }
 
-      if (b.top)
-        range.setBorder(
-          true,
-          null,
-          null,
-          null,
-          null,
-          null,
-          b.top.color,
-          b.top.style
-        );
-      if (b.bottom)
-        range.setBorder(
-          null,
-          null,
-          true,
-          null,
-          null,
-          null,
-          b.bottom.color,
-          b.bottom.style
-        );
-      if (b.left)
-        range.setBorder(
-          null,
-          true,
-          null,
-          null,
-          null,
-          null,
-          b.left.color,
-          b.left.style
-        );
-      if (b.right)
-        range.setBorder(
-          null,
-          null,
-          null,
-          true,
-          null,
-          null,
-          b.right.color,
-          b.right.style
-        );
+  cellData.userEnteredFormat = format;
 
-      c += len;
+  // 3. Validation
+  if (directives.validation) {
+    cellData.dataValidation = _mapValidationToApi(directives.validation);
+  }
+
+  // 4. Note
+  if (cell.note) cellData.note = cell.note;
+
+  return cellData;
+}
+
+function _mapStyleToFormat(style) {
+  const format = {};
+
+  // Background
+  const bg = _parseColor(style.backgroundColor);
+  if (bg) format.backgroundColor = bg;
+
+  // Alignment
+  if (style.alignment.horizontal)
+    format.horizontalAlignment = style.alignment.horizontal.toUpperCase();
+  if (style.alignment.vertical)
+    format.verticalAlignment = style.alignment.vertical.toUpperCase();
+
+  // Wrap Strategy
+  const wrapMap = {
+    [SpreadsheetApp.WrapStrategy.WRAP]: "WRAP",
+    [SpreadsheetApp.WrapStrategy.OVERFLOW]: "OVERFLOW_CELL",
+    [SpreadsheetApp.WrapStrategy.CLIP]: "CLIP",
+  };
+  // Default to OVERFLOW_CELL if the mapping fails or style is missing
+  format.wrapStrategy = wrapMap[style.wrap] || "OVERFLOW_CELL";
+
+  // Text Format
+  const tf = {};
+  const fg = _parseColor(style.font.color);
+  if (fg) tf.foregroundColor = fg;
+
+  if (style.font.family) tf.fontFamily = style.font.family;
+  if (style.font.size) tf.fontSize = style.font.size;
+  if (style.font.bold) tf.bold = true;
+  if (style.font.italic) tf.italic = true;
+  if (style.font.strikethrough) tf.strikethrough = true;
+  if (style.font.underline) tf.underline = true;
+
+  // Only attach textFormat if we have properties
+  if (Object.keys(tf).length > 0) format.textFormat = tf;
+
+  // Borders
+  const borders = {};
+  if (style.border.top) borders.top = _mapBorder(style.border.top);
+  if (style.border.bottom) borders.bottom = _mapBorder(style.border.bottom);
+  if (style.border.left) borders.left = _mapBorder(style.border.left);
+  if (style.border.right) borders.right = _mapBorder(style.border.right);
+
+  if (Object.keys(borders).length > 0) format.borders = borders;
+
+  // Rotation
+  if (style.rotation) format.textRotation = { angle: style.rotation };
+
+  return format;
+}
+
+function _mapBorder(side) {
+  if (!side) return null;
+  const b = {
+    style: side.style,
+    color: _parseColor(side.color),
+  };
+  // API border objects cannot have partial nulls
+  if (!b.color) delete b.color;
+  return b;
+}
+
+function _mapValidationToApi(validation) {
+  const criteria = validation.getCriteriaType();
+  const args = validation.getCriteriaValues();
+
+  const rule = {
+    showCustomUi: true,
+    strict: !validation.getAllowInvalid(),
+  };
+
+  if (criteria === SpreadsheetApp.DataValidationCriteria.CHECKBOX) {
+    rule.condition = { type: "BOOLEAN" };
+  } else if (criteria === SpreadsheetApp.DataValidationCriteria.VALUE_IN_LIST) {
+    rule.condition = {
+      type: "ONE_OF_LIST",
+      values: args[0].map((val) => ({ userEnteredValue: String(val) })),
+    };
+  } else if (
+    criteria === SpreadsheetApp.DataValidationCriteria.DATE_IS_VALID_DATE
+  ) {
+    rule.condition = { type: "DATE_IS_VALID" };
+  }
+
+  return rule;
+}
+
+function _buildApiMerges(cells, bounds, sheetId) {
+  const requests = [];
+  for (const c of cells) {
+    if (c.cell.rowSpan > 1 || c.cell.colSpan > 1) {
+      requests.push({
+        mergeCells: {
+          range: {
+            sheetId: sheetId,
+            startRowIndex: c.row,
+            endRowIndex: c.row + c.cell.rowSpan,
+            startColumnIndex: c.col,
+            endColumnIndex: c.col + c.cell.colSpan,
+          },
+          mergeType: "MERGE_ALL",
+        },
+      });
     }
   }
+  return requests;
 }
 
-function _bordersMatch(a, b) {
-  if (a === b) return true;
-  if (!a || !b) return false;
-  const eq = (x, y) => x?.color === y?.color && x?.style === y?.style;
+function _buildApiDimensions(cells, bounds, sheetId) {
+  const requests = [];
+  const widthMap = new Map();
+  const heightMap = new Map();
+
+  for (const c of cells) {
+    if (c.style.width !== null) widthMap.set(c.col, c.style.width);
+    if (c.style.height !== null) heightMap.set(c.row, c.style.height);
+  }
+
+  widthMap.forEach((width, index) => {
+    requests.push({
+      updateDimensionProperties: {
+        range: {
+          sheetId,
+          dimension: "COLUMNS",
+          startIndex: index,
+          endIndex: index + 1,
+        },
+        properties: { pixelSize: width },
+        fields: "pixelSize",
+      },
+    });
+  });
+
+  heightMap.forEach((height, index) => {
+    requests.push({
+      updateDimensionProperties: {
+        range: {
+          sheetId,
+          dimension: "ROWS",
+          startIndex: index,
+          endIndex: index + 1,
+        },
+        properties: { pixelSize: height },
+        fields: "pixelSize",
+      },
+    });
+  });
+
+  return requests;
+}
+
+// ----------------------------------------------------------------------------
+// UTILS
+// ----------------------------------------------------------------------------
+
+function _dateToSerial(date) {
+  const epoch = new Date(1899, 11, 30);
+  const msPerDay = 86400000;
   return (
-    eq(a.top, b.top) &&
-    eq(a.bottom, b.bottom) &&
-    eq(a.left, b.left) &&
-    eq(a.right, b.right)
+    (date.getTime() - epoch.getTime() - date.getTimezoneOffset() * 60000) /
+    msPerDay
   );
+}
+
+function _parseColor(input) {
+  if (!input) return null;
+
+  const hexMap = {
+    black: "#000000",
+    white: "#FFFFFF",
+    red: "#FF0000",
+    blue: "#0000FF",
+    green: "#008000",
+    gray: "#808080",
+    grey: "#808080",
+    yellow: "#FFFF00",
+    orange: "#FFA500",
+    purple: "#800080",
+  };
+
+  let hex = hexMap[input.toLowerCase()] || input;
+
+  if (typeof hex === "string" && hex.startsWith("#")) {
+    // Expand shorthand hex (e.g. #fff -> #ffffff)
+    if (hex.length === 4) {
+      hex = "#" + hex[1] + hex[1] + hex[2] + hex[2] + hex[3] + hex[3];
+    }
+
+    if (hex.length === 7) {
+      const r = parseInt(hex.slice(1, 3), 16) / 255;
+      const g = parseInt(hex.slice(3, 5), 16) / 255;
+      const b = parseInt(hex.slice(5, 7), 16) / 255;
+
+      // Ensure valid numbers
+      if (!isNaN(r) && !isNaN(g) && !isNaN(b)) {
+        return { red: r, green: g, blue: b };
+      }
+    }
+  }
+  return null;
 }
